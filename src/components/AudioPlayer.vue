@@ -1,13 +1,13 @@
 <template>
     <div class="w-full h-full flex flex-col">
         <audio controls ref="audio" preload="auto" @timeupdate="timeUpdate"/>
-        <div class="w-full h-2">
+        <!-- <div class="w-full h-2">
             <div :style="'width: '+playTime/totalTime*100+'%;'" class="bg-red-300"></div>
         </div>
         <div>
             <div>{{playTime/60}}:{{playTime%60}}/{{totalTime/60}}:{{totalTime%60}}</div>
             
-        </div>
+        </div> -->
     </div>
 </template>
 <script>

@@ -8,11 +8,11 @@ let db
 // 初始化数据库
 function init() {
     return new Promise((resolve, reject) => {
-      request = window.indexedDB.open(SQL_NAME);
+      request = window.indexedDB.open(SQL_NAME,2);
       request.onerror = (event) => {
         reject(event)
       };
-      request.onsuccess = (event) => {
+      request.onupgradeneeded = (event) => {
         db = event.target.result
         let objectStore
         if (!db.objectStoreNames.contains(DB_NAME)) {
@@ -28,8 +28,10 @@ function init() {
         resolve(event.target.result)
         db = event.target.result
       }
-      request.onupgradeneeded = () => {
-        
+
+      request.onsuccess = (event) => {
+        db = event.target.result
+        resolve(event.target.result)
       }
     })
 }
@@ -68,9 +70,6 @@ async function get(name) {
 
 async function getAll() {
     return new Promise((resolve, reject) => {
-      if(!db) {
-        return
-      }
     const select = db
       .transaction([DB_NAME], "readonly")
       .objectStore(DB_NAME)
