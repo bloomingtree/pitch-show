@@ -1,9 +1,8 @@
 <script setup>
-import TheWelcome from '../components/TheWelcome.vue'
+import SongPitch from "@/components/SongPitch.vue"
 </script>
-
 <template>
-  <main>
-    <TheWelcome />
-  </main>
+  <div class="h-full">
+      <SongPitch />
+  </div>
 </template>
