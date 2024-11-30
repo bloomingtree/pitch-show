@@ -1,6 +1,7 @@
 <template>
   <div class="h-full flex flex-col justify-between" style="background-color: #f8f7f4;">
-    <div class="group fixed right-5 -top-96 min-w-72 shadow-lg shadow-inner p-3 bg-white rounded-md h-96 transition-all duration-300
+    <!-- 分析歌曲选项栏 -->
+    <div class="group fixed right-5 -top-96 min-w-72 shadow-lg shadow-inner p-3 bg-white rounded-md h-96 transition-all duration-300 z-10
     hover:top-0 hover:z-20">
       <div class="h-18 flex items-center justify-center w-full">
         <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-16 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
@@ -39,7 +40,8 @@
         <div class="h-16 w-full bg-slate-500 transition w-16 rounded-b"></div>
       </div>
     </div>
-    <div class="group fixed right-5 -top-72 min-w-72 shadow-lg shadow-inner p-3 bg-white rounded-md h-72 transition-all duration-300
+    <!-- 快捷键说明选项栏 -->
+    <div class="group fixed right-5 -top-72 min-w-72 shadow-lg shadow-inner p-3 bg-white rounded-md h-72 transition-all duration-300 z-10
     hover:top-0 hover:z-20">
       <div class="w-full h-full flex flex-col">
         <h2 class="text-left font-bold">快捷键说明</h2>
@@ -52,6 +54,10 @@
           <p class="ml-2 text-sm text-gray-500 dark:text-gray-400">向右移动2秒</p>
         </div>
         <div class="flex justify-center items-center mt-2">
+          <div class="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">B</div>
+          <p class="ml-2 text-sm text-gray-500 dark:text-gray-400">回到开始位置</p>
+        </div>
+        <div class="flex justify-center items-center mt-2">
           <div class="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">Spacebar</div>
           <p class="ml-2 text-sm text-gray-500 dark:text-gray-400">播放/暂停</p>
         </div>
@@ -60,14 +66,14 @@
         <div class="h-16 w-full bg-amber-200 transition w-16 rounded-b"></div>
       </div>
     </div>
-    <div>
-      <audio-player ref="audioPlayer" @timeupdate="timeUpdate"></audio-player>
-    </div>
-    <div class="flex1 relative h-full overflow-hidden" style="transform: rotateX(180deg);">
-      <div v-for="(singleNote, index) in decodedNotes" :key="index" class="absolute bg-black transition-transform ease-linear" 
+    
+    <!-- 音符显示区 -->
+    <div class="flex1 h-full" id="canvasDiv" style="transform: rotateX(180deg);">
+      <!-- <div v-for="(singleNote, index) in decodedNotes" :key="index" class="absolute bg-black transition-transform ease-linear" 
         v-show="singleNote.x && (singleNote.y-playTime < 20 && singleNote.durationSeconds+singleNote.y+2 >= playTime)"
         :style="'left: '+singleNote.x*100+'%; top: '+singleNote.y*magnification+'px; transform: translate(0, '+playTime*magnification*(-1)+'px); width: '+singleNote.width*100+'%; height: '+singleNote.height*magnification+'px;opacity: '+singleNote.amplitude+';transition-duration: 50ms;'">
-      </div>
+      </div> -->
+      <canvas id="note-canvas" width="300" height="300"></canvas>
     </div>
     <div class="w-full h-20 flex flex-row">
       <div class="flex-1 h-full flex flex-row relative" v-for="(num, index) in octaveNum" :key="index">
@@ -99,6 +105,10 @@
         </div>
       </div>
     </div>
+    <!-- 歌曲播放栏 -->
+    <div>
+      <audio-player ref="audioPlayer" @timeupdate="timeUpdate"></audio-player>
+    </div>
   </div>
 </template>
 
@@ -129,10 +139,15 @@ export default {
       timeInterval: null,
       songFile: null,
       processStr: '',
-      magnification: 100,
+      magnification: 100,   //音符长度放大倍数，便于显示
       analyzedSong: [],
       processStatus: 'none', // none-未工作 running-正在分析 encoding-正在解析结果
       chosenFile: false, //仅用于记录当前songFile是否是上传文件
+      noteAreaWidth: 0,
+      noteAreaHeight: 0,
+      showingSecond: 5,  //要在屏幕上显示从当前位置往后“多少”秒的音符
+      secondLength: 100,  //每一秒对应在canvas中的长度，用于约束音符的长度
+      amplitudeMag: 0,
     }
   },
   methods: {
@@ -162,14 +177,16 @@ export default {
       return renderedBuffer
     },
     startAnanlyze() {
-      if(this.chosenFile === null) {
+      if(!this.chosenFile) {
+        return
+      }
+      if(this.processStr !== '') {
         return
       }
       let that = this
       let fr = new FileReader()
       fr.readAsArrayBuffer(this.songFile)
       fr.addEventListener('loadend', (e)=> {
-        console.log(e)
         that.getPitches(e.target.result)
       })
     },
@@ -202,18 +219,54 @@ export default {
       this.decodedNotes = notes
       songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
       this.getAnalysizedSongList()
+      this.amplitudeMag = 0 // 修改强度扩大倍数为默认值
       this.showNotes()
     },
-    showNotes() {
+    getPreNoteDate() {
+      if(this.amplitudeMag !== 0) {
+        return
+      }
+      let maxAmplitude = 0
       this.decodedNotes.forEach(singleNote=> {
-        let octave = Math.floor((singleNote.pitchMidi - this.lowestPitch)/12)
-        let scale = (singleNote.pitchMidi - this.lowestPitch)%12
-        singleNote.x = octave/this.octaveNum + this.getScaleLeft(scale)
+        if(singleNote.amplitude > maxAmplitude) {
+          maxAmplitude = singleNote.amplitude
+        }
+      })
+      
+      const  magnification = 1/maxAmplitude
+      this.decodedNotes.forEach(singleNote=> {
+        if(singleNote.amplitude > maxAmplitude) {
+          singleNote.amplitude *= magnification
+        }
+      })
+      this.amplitudeMag = magnification
+    },
+    showNotes() {
+      // 清空canvas
+      const canvas = document.getElementById('note-canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      //扩大音符强度
+      this.getPreNoteDate()
+      this.decodedNotes.forEach(singleNote=> {
+        let octave = Math.floor((singleNote.pitchMidi - this.lowestPitch)/12) //计算在哪个八度上
+        let scale = (singleNote.pitchMidi - this.lowestPitch)%12  //计算在该八度上的具体音高
+        singleNote.x = octave/this.octaveNum + this.getScaleLeft(scale) //x（单位%）离左侧的距离为多少%
         singleNote.width = 1/(this.octaveNum*18)
         singleNote.y = singleNote.startTimeSeconds
         singleNote.height = singleNote.durationSeconds
-        singleNote.amplitude = this.customSigmoid(singleNote.amplitude)
+        if(this.playTime-singleNote.y < 3 || singleNote.y-this.playTime < 10) {
+          this.drawNote(singleNote)
+        }
       })
+    },
+    drawNote(singleNote) {
+      var c=document.getElementById("note-canvas");
+      var ctx=c.getContext("2d");
+      ctx.fillStyle=`rgba(236, 44, 100,${singleNote.amplitude})`;
+      ctx.fillRect(singleNote.x * this.noteAreaWidth, (singleNote.y-this.playTime) * this.secondLength, 
+      singleNote.width * this.noteAreaWidth, singleNote.height * this.noteAreaHeight);
     },
     customSigmoid(x) {
       // 将输入值平移0.5，使得对称中心位于x=0.5
@@ -257,6 +310,7 @@ export default {
     },
     timeUpdate(val) {
       this.playTime = val
+      this.showNotes()
     },
     showSong(song) {
       this.setAudioFile(song.song)
@@ -274,10 +328,20 @@ export default {
       songDB.getAll().then(res=> {
       that.analyzedSong = res
     })
+    },
+    setCanvasWH() {
+      this.noteAreaWidth = Math.floor(document.getElementById('canvasDiv').clientWidth)
+      this.noteAreaHeight = Math.floor(document.getElementById('canvasDiv').clientHeight)
+
+      document.getElementById("note-canvas").width = this.noteAreaWidth
+			document.getElementById("note-canvas").height = this.noteAreaHeight
+      this.secondLength = this.noteAreaHeight/this.showingSecond
     }
   },
   mounted() {
     this.getAnalysizedSongList()
+    this.setCanvasWH()
+    window.addEventListener('resize', this.setCanvasWH)
     this.magnification = Math.floor(window.innerHeight/7)
   }
 }
@@ -302,7 +366,13 @@ a {
 .key-black {
   width: 7.14%;
 }
+.key-black:hover {
+  background-color: #ccc;
+}
 .key-white {
   width: 14.28%;
+}
+.key-white:first-child:hover {
+  background-color: #ccc;
 }
 </style>
