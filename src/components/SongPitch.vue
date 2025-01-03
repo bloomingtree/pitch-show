@@ -146,8 +146,9 @@ export default {
       noteAreaWidth: 0,
       noteAreaHeight: 0,
       showingSecond: 5,  //要在屏幕上显示从当前位置往后“多少”秒的音符
-      secondLength: 100,  //每一秒对应在canvas中的长度，用于约束音符的长度
+      secondLength: 1,  //每一秒对应在canvas中的长度，用于约束音符的长度
       amplitudeMag: 0,
+      lastPastNoteIndex: 0, //记录已经播放过的音符中最后一个的下标
     }
   },
   methods: {
@@ -206,23 +207,32 @@ export default {
           contours.push(...c);
         },
         (p) => {
-          that.processStr = p*100 + '%'
+          p *= 100
+          p = p.toFixed(2)
+          that.processStr = p + '%'
         }
       );
-      this.processStr = ''
+      this.processStr = '正在获取音符，请耐心等待'
       const notes = noteFramesToTime(
         addPitchBendsToNoteEvents(
           contours,
           outputToNotesPoly(frames, onsets, 0.25, 0.25, 5),
         ),
       )
-      this.decodedNotes = notes
-      songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
-      this.getAnalysizedSongList()
+      this.decodedNotes = notes.sort((a,b)=> {
+        return (a.startTimeSeconds+a.durationSeconds) - (b.startTimeSeconds+b.durationSeconds)  //按照结束时间由前到后排序
+      })
       this.amplitudeMag = 0 // 修改强度扩大倍数为默认值
+      this.pastNoteIndex = 0
+
+      this.changeNoteAmplitude()
+      this.processStr = ''
+      songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
+      this.getAnalysizedSongList()      
       this.showNotes()
     },
-    getPreNoteDate() {
+    //扩大音符强度
+    changeNoteAmplitude() {
       if(this.amplitudeMag !== 0) {
         return
       }
@@ -238,35 +248,47 @@ export default {
         if(singleNote.amplitude > maxAmplitude) {
           singleNote.amplitude *= magnification
         }
-      })
-      this.amplitudeMag = magnification
-    },
-    showNotes() {
-      // 清空canvas
-      const canvas = document.getElementById('note-canvas');
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
 
-      //扩大音符强度
-      this.getPreNoteDate()
-      this.decodedNotes.forEach(singleNote=> {
+        //修改其他显示参数
         let octave = Math.floor((singleNote.pitchMidi - this.lowestPitch)/12) //计算在哪个八度上
         let scale = (singleNote.pitchMidi - this.lowestPitch)%12  //计算在该八度上的具体音高
         singleNote.x = octave/this.octaveNum + this.getScaleLeft(scale) //x（单位%）离左侧的距离为多少%
         singleNote.width = 1/(this.octaveNum*18)
         singleNote.y = singleNote.startTimeSeconds
         singleNote.height = singleNote.durationSeconds
-        if(this.playTime-singleNote.y < 3 || singleNote.y-this.playTime < 10) {
-          this.drawNote(singleNote)
-        }
       })
+      this.amplitudeMag = magnification
+    },
+    showNotes(isManual = true) {
+      // 清空canvas
+      const canvas = document.getElementById('note-canvas');
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+      if(isManual) {
+        this.lastPastNoteIndex = 0
+      }
+      let i=this.lastPastNoteIndex
+      while(this.decodedNotes.length > i) {
+        const singleNote = this.decodedNotes[i]
+        if(this.playTime > (singleNote.startTimeSeconds+singleNote.durationSeconds)) {  //得到目前最后一个显示完毕的音符的下标
+          this.lastPastNoteIndex = i
+        } else {  //得到那些在当前时间时未播放完的音符
+          if(singleNote.startTimeSeconds-this.playTime < 10) {   //只显示当前时间往后10s范围内的音符
+            this.drawNote(singleNote)
+          } else {
+            break
+          }
+        }
+        i++
+      }
     },
     drawNote(singleNote) {
       var c=document.getElementById("note-canvas");
       var ctx=c.getContext("2d");
       ctx.fillStyle=`rgba(236, 44, 100,${singleNote.amplitude})`;
-      ctx.fillRect(singleNote.x * this.noteAreaWidth, (singleNote.y-this.playTime) * this.secondLength, 
-      singleNote.width * this.noteAreaWidth, singleNote.height * this.noteAreaHeight);
+      ctx.fillRect(singleNote.x * this.noteAreaWidth, (singleNote.y-this.playTime)*this.secondLength, 
+      singleNote.width * this.noteAreaWidth, singleNote.height*this.secondLength);
     },
     customSigmoid(x) {
       // 将输入值平移0.5，使得对称中心位于x=0.5
@@ -308,13 +330,18 @@ export default {
       // 设置audio元素的src属性为文件的URL
       this.$refs.audioPlayer.setSrc(fileURL)
     },
-    timeUpdate(val) {
+    timeUpdate(val, isManual) {
+      if(this.playTime === val) {
+        return
+      }
       this.playTime = val
-      this.showNotes()
+      this.showNotes(isManual)
     },
     showSong(song) {
       this.setAudioFile(song.song)
       this.decodedNotes = JSON.parse(song.notesStr)
+      this.amplitudeMag = 1 //选择已解析的歌曲，无需再进行强度放大
+      this.pastNoteIndex = 0
       this.showNotes()
     },
     deleteSong(songName, index) {

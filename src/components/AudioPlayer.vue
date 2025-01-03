@@ -4,9 +4,11 @@
         <div class="w-full h-2">
             <div :style="'width: '+playTime/totalTime*100+'%;'" class="bg-red-300"></div>
         </div>
-        <div>
+        <div class="relative">
             <div>{{Math.floor(playTime/60)}}:{{Math.floor(playTime%60)}}/{{Math.floor(totalTime/60)}}:{{Math.floor(totalTime%60)}}</div>
-            
+            <div class="absolute w-full h-full top-0 left-0 overflow-hidden">
+                <div class="w-1 h-full relative top-0 bg-slate-400" :style="'left: '+playTime/totalTime*100+'%;'"></div>
+            </div>
         </div>
     </div>
 </template>
@@ -27,12 +29,12 @@ export default {
             // 检查是否按下了左箭头键（keyCode 37）或右箭头键（keyCode 39）
             if (event.key === ',') {
                 // 向前移动3秒
-                this.$refs.audio.currentTime -= 2;
-                this.timeUpdate()
+                this.$refs.audio.currentTime -= 3;
+                this.timeUpdate(true)
             } else if (event.key === '.') {
                 // 向后移动3秒
-                this.$refs.audio.currentTime += 2
-                this.timeUpdate()
+                this.$refs.audio.currentTime += 3
+                this.timeUpdate(true)
             }else if (event.key === 'b') {
                 // 回到最开始
                 this.$refs.audio.currentTime = 0
@@ -48,7 +50,6 @@ export default {
                     this.pause()
                 }
             }
-            this.$emit('timeupdate', this.$refs.audio.currentTime)
         },
         setSrc(srcUrl) {
             this.$refs.audio.src = srcUrl
@@ -60,16 +61,16 @@ export default {
             this.totalTime = duration
             this.$refs.audio.removeEventListener('loadedmetadata', this.handleLoadedMetadata)
         },
-        timeUpdate() {
+        timeUpdate(isManual) {
             this.playTime = this.$refs.audio.currentTime
-            this.$emit('timeupdate', this.$refs.audio.currentTime)
+            this.$emit('timeupdate', this.$refs.audio.currentTime, isManual === true)   // 默认传值为数字，所以要判断一下
             if(!this.$refs.audio.paused) {
                 window.requestAnimationFrame(this.timeUpdate)
             }
         },
         start() {
             this.$refs.audio.play()
-            this.timeUpdate()
+            this.timeUpdate(true)
         },
         pause() {
             if (!this.$refs.audio.paused) {
