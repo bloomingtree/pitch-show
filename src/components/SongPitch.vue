@@ -2,7 +2,8 @@
   <div class="h-full flex flex-col justify-between" style="background-color: #f8f7f4;">
     <!-- 分析歌曲选项栏 -->
     <div class="group fixed right-5 -top-96 min-w-72 shadow-lg shadow-inner p-3 bg-white rounded-md h-96 transition-all duration-300 z-10
-    hover:top-0 hover:z-20">
+    hover:top-0 hover:z-20" ref="analysisArea"
+    :class="{ 'hover-state': isHovered }">
       <div class="h-18 flex items-center justify-center w-full">
         <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-16 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
           <div class="flex flex-col items-center justify-center pt-5 pb-6">
@@ -149,6 +150,7 @@ export default {
       secondLength: 1,  //每一秒对应在canvas中的长度，用于约束音符的长度
       amplitudeMag: 0,
       lastPastNoteIndex: 0, //记录已经播放过的音符中最后一个的下标
+      isHovered: false, //用来提醒用户右上角可以hover上去展开
     }
   },
   methods: {
@@ -370,6 +372,11 @@ export default {
     this.setCanvasWH()
     window.addEventListener('resize', this.setCanvasWH)
     this.magnification = Math.floor(window.innerHeight/7)
+    let that = this
+    this.isHovered = true
+    setTimeout(() => {
+      that.isHovered = false
+    }, 4000);
   }
 }
 </script>
@@ -401,5 +408,9 @@ a {
 }
 .key-white:first-child:hover {
   background-color: #ccc;
+}
+.hover-state {
+  top: 0 !important;
+  z-index: 20 !important;
 }
 </style>
