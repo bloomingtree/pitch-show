@@ -1,7 +1,7 @@
 <template>
     <div class="container">
       <header>
-        <h1>Basic-Pitch 音频分析工具</h1>
+        <h1>扒谱神器 音频音高分析工具，帮助你更好地了解音乐</h1>
         <p>上传音频，轻松获取音符信息！</p>
         <p>音乐爱好者扒谱神器</p>
       </header>
@@ -43,7 +43,7 @@
       </main>
   
       <footer>
-        <p>&copy; 2023 [你的网站名称]. 版权所有.</p>
+        <p>&copy; 1437821834@qq.com . 版权所有.</p>
       </footer>
     </div>
   </template>
