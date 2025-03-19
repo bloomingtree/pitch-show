@@ -151,6 +151,8 @@ export default {
       amplitudeMag: 0,
       lastPastNoteIndex: 0, //记录已经播放过的音符中最后一个的下标
       isHovered: false, //用来提醒用户右上角可以hover上去展开
+      findingLastNote: 0, //手动修改播放时间后，程序是否正在寻找最后一个已播放音符 0-未在查找 大于1-正在查找，且数字表示查找过程中被打断渲染的次数。如果次数太大说明程序出问题了，就强迫渲染
+      noteCtx: null,
     }
   },
   methods: {
@@ -268,8 +270,17 @@ export default {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       if(isManual) {
-        this.lastPastNoteIndex = 0
+        this.findLastPlayNote()
+      } else {
+        if(this.findingLastNote > 0) {
+          // 正在查找最后一个未播放完的音符，直接返回
+          this.findingLastNote++
+          if(this.findingLastNote < 80) {
+            return
+          }
+        }
       }
+      
       let i=this.lastPastNoteIndex
       while(this.decodedNotes.length > i) {
         const singleNote = this.decodedNotes[i]
@@ -286,11 +297,25 @@ export default {
       }
     },
     drawNote(singleNote) {
-      var c=document.getElementById("note-canvas");
-      var ctx=c.getContext("2d");
-      ctx.fillStyle=`rgba(236, 44, 100,${singleNote.amplitude})`;
-      ctx.fillRect(singleNote.x * this.noteAreaWidth, (singleNote.y-this.playTime)*this.secondLength, 
+      this.noteCtx.fillStyle=`rgba(236, 44, 100,${singleNote.amplitude})`;
+      this.noteCtx.fillRect(singleNote.x * this.noteAreaWidth, (singleNote.y-this.playTime)*this.secondLength, 
       singleNote.width * this.noteAreaWidth, singleNote.height*this.secondLength);
+    },
+    findLastPlayNote() {
+      //二分查找，找到this.decodeNotes数组中第一个endTime大于this.playTime的下标
+      this.findingLastNote = 1
+      let left = 0
+      let right = this.decodedNotes.length-1
+      while(left <= right) {
+        let mid = Math.floor((left+right)/2)
+        if(this.decodedNotes[mid].startTimeSeconds+this.decodedNotes[mid].durationSeconds > this.playTime) {
+          right = mid-1
+        } else {
+          left = mid+1
+        }
+      }
+      this.lastPastNoteIndex = left
+      this.findingLastNote = 0
     },
     customSigmoid(x) {
       // 将输入值平移0.5，使得对称中心位于x=0.5
@@ -377,6 +402,9 @@ export default {
     setTimeout(() => {
       that.isHovered = false
     }, 4000);
+
+    let c = document.getElementById("note-canvas")
+    this.noteCtx = c.getContext("2d")
   }
 }
 </script>

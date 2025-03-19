@@ -26,20 +26,8 @@ export default {
             if(this.$refs.audio.readyState <= 2) {
                 return
             }
-            // 检查是否按下了左箭头键（keyCode 37）或右箭头键（keyCode 39）
-            if (event.key === ',') {
-                // 向前移动3秒
-                this.$refs.audio.currentTime -= 3;
-                this.timeUpdate(true)
-            } else if (event.key === '.') {
-                // 向后移动3秒
-                this.$refs.audio.currentTime += 3
-                this.timeUpdate(true)
-            }else if (event.key === 'b') {
-                // 回到最开始
-                this.$refs.audio.currentTime = 0
-                this.timeUpdate()
-            }else if (event.keyCode === 32) {
+            
+            if (event.keyCode === 32) {
                 // 空格
                 event.preventDefault()
                 if (this.$refs.audio.paused) {
@@ -48,6 +36,35 @@ export default {
                 } else {
                     // 如果音频正在播放，则暂停音频
                     this.pause()
+                }
+            } else {
+                const isPaused = this.$refs.audio.paused
+                // 检查是否按下了左箭头键（keyCode 37）或右箭头键（keyCode 39）
+                if (event.key === ',') {
+                    // 向前移动3秒
+                    if(!isPaused) {
+                        this.$refs.audio.pause()
+                    }
+                    this.$refs.audio.currentTime -= 3;
+                    this.timeUpdate(true)
+                } else if (event.key === '.') {
+                    // 向后移动3秒
+                    if(!isPaused) {
+                        this.$refs.audio.pause()
+                    }
+                    this.$refs.audio.currentTime += 3
+                    this.timeUpdate(true)
+                }else if (event.key === 'b') {
+                    // 回到最开始
+                    if(!isPaused) {
+                        this.$refs.audio.pause()
+                    }
+                    this.$refs.audio.pause()
+                    this.$refs.audio.currentTime = 0
+                    this.timeUpdate(true)
+                }
+                if(!isPaused) {
+                    this.$refs.audio.play()
                 }
             }
         },
@@ -63,7 +80,7 @@ export default {
         },
         timeUpdate(isManual) {
             this.playTime = this.$refs.audio.currentTime
-            this.$emit('timeupdate', this.$refs.audio.currentTime, isManual === true)   // 默认传值为数字，所以要判断一下
+            this.$emit('timeupdate', this.$refs.audio.currentTime, isManual === true)   // 默认传值为数字(当前播放时间)，如果是手动的就会传值true，所以要判断一下
             if(!this.$refs.audio.paused) {
                 window.requestAnimationFrame(this.timeUpdate)
             }
