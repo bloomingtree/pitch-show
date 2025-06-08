@@ -1,6 +1,6 @@
 <template>
   <div class="about">
-    <h1>This is an about page</h1>
+    <h1>关于音频音高分析工具</h1>
   </div>
 </template>
 
