@@ -12,6 +12,8 @@
   "dependencies": {
     "@spotify/basic-pitch": "^1.0.1",
     "@tensorflow/tfjs": "^4.21.0",
+    "axios": "^1.10.0",
+    "notivue": "^2.4.5",
     "vue": "^3.4.29",
     "vue-router": "^4.3.3"
   },

@@ -1,6 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainView from '../views/MainView.vue'
 import InfoView from '../views/InfoView.vue'
+import RegisterView from '@/views/auth/RegisterView.vue';
+import LoginView from '@/views/auth/LoginView.vue';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -31,6 +33,14 @@ const router = createRouter({
       meta: {
         description: '关于音频音高分析工具的信息，采用Spotify开源技术Basic-Pitch，提供免费精准的音符识别服务'
       }
+    },{
+      path: '/register',
+      name: 'Register',
+      component: RegisterView
+    },{
+      path: '/login',
+      name: 'Login',
+      component: LoginView
     }
   ]
 })
