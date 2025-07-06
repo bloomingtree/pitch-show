@@ -21,7 +21,16 @@ export default defineConfig({
         target: 'https://api-dev.pitch.shiyin.cyou',
         // target: 'http://127.0.0.1:8787',
         changeOrigin: true
+      },
+      '/static': {
+        // target: 'https://api-dev.pitch.shiyin.cyou',
+        target: 'http://127.0.0.1:5000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/static/, '')
       }
     }
+  },
+  optimizeDeps: {
+    exclude: ['onnxruntime-web']
   }
 })
