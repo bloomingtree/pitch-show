@@ -170,7 +170,12 @@ export default {
 
       ctx.stroke();
     },
-    
+    downloadBlob(blob, filename) {
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+    },
     // 修改startAnanlyze方法中的回调处理
     async startAnanlyze() {
       if (!this.songFile) {
@@ -182,8 +187,10 @@ export default {
       }
       this.processNum = 0;
       await separate1.loadAudio(this.songFile)
-      const result = await separate1.applyModel()
-      console.log(result)
+      const blobs = await separate1.applyModel()
+      this.downloadBlob(blobs[0])
+      this.downloadBlob(blobs[1])
+      this.downloadBlob(blobs[2])
       // separate.startProcessing(this.songFile, (progress, buffers, downloadLinks) => {
       //   if(progress) {
       //     this.processNum = progress.toFixed(2);

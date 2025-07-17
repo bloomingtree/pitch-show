@@ -2,8 +2,10 @@
 import { InferenceSession, Tensor } from 'onnxruntime-web';
 import * as ort from 'onnxruntime-web';
 import * as tf from '@tensorflow/tfjs';
-import { fft } from 'fft-js'
-const { decode: decodeWav } = require('wav-decoder');
+import { fft, ifft } from 'fft-js'
+import {saveTensorToIndexedDB, loadTensorFromIndexedDB, 
+    convertToTFTensor, convertFromTFTensor
+} from "./tensorUtils.js"
 
 let modelSession
 let inputTensor
@@ -47,9 +49,7 @@ async function loadAudio(audioFile) {
     // 加载音频
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     const arrayBuffer = await audioFile.arrayBuffer();
-    
-    const audioBuffer = await decodeWav(arrayBuffer);
-    
+    let audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     // 重采样到目标采样率
     if (audioBuffer.sampleRate !== target_sr) {
         const offlineCtx = new OfflineAudioContext(
@@ -100,6 +100,7 @@ async function loadAudio(audioFile) {
         processed[i] = (wav[i] - refMean) / refStd;
     }
     // 修改Tensor的创建方式
+    console.log('length:', processed.length)
     inputTensor = new Tensor('float32', processed, [1, 2, samples]);
 }
 
@@ -107,27 +108,23 @@ async function loadAudio(audioFile) {
 function padChunk(tensor, offset, targetLength) {
     const [B, C, T] = tensor.dims;
     const totalLength = T;
-    
-    // 计算需要填充的长度
-    const delta = targetLength - (tensor.dims[2] || 0);
-    const start = offset - Math.floor(delta / 2);
+
+    // 计算当前窗口需要覆盖的范围
+    const start = targetLength - (tensor.dims[2] || 0); // 注意：这里才是以 offset 为起点的扩展
     const end = start + targetLength;
 
-    // 计算有效范围
+    // 调整有效范围
     const correctStart = Math.max(0, start);
     const correctEnd = Math.min(totalLength, end);
-    
-    // 计算填充量
+
+    // 填充量
     const padLeft = correctStart - start;
     const padRight = end - correctEnd;
 
     // 创建新数组并填充
     const paddedData = new Float32Array(B * C * targetLength);
-    const sourceData = tensor.data.subarray(
-        correctStart * C,
-        correctEnd * C
-    );
-    
+    const sourceData = tensor.data.subarray(correctStart * C, correctEnd * C);
+
     // 填充左侧
     if (padLeft > 0) {
         paddedData.set(new Float32Array(padLeft * C), 0);
@@ -146,7 +143,6 @@ function padChunk(tensor, offset, targetLength) {
 // 修改applyModel函数中的分块处理部分
 async function applyModel() {
     const mixTensor = inputTensor;
-    debugger
     const overlap = 0.25
     const transitionPower = 1
     const samplerate = 44100;
@@ -181,6 +177,7 @@ async function applyModel() {
 
     // 分块处理
     for (let offset = 0; offset < length; offset += stride) {
+        console.log(offset, length)
         const chunkStart = offset;
         const chunkEnd = Math.min(offset + segmentLength, length);
         const chunkLength = chunkEnd - chunkStart;
@@ -191,26 +188,30 @@ async function applyModel() {
             mixTensor.data.slice(chunkStart * channels, chunkEnd * channels),
             [batch, channels, chunkLength]
         );
-        
         // 使用新的填充逻辑
         const chunkTensor = padChunk(rawChunk, chunkStart, segmentLength);
         // 调用runModel处理分块
+        // const chunkTensor = []
+        // const segment = 5
+        // const samplerate = 44100;
         const chunkOut = await runModel(chunkTensor, segment, samplerate);
-        
+        // await saveTensorToIndexedDB(chunkOut, 'chunkOut')
+        // const chunkOut = await loadTensorFromIndexedDB('chunkOut')
         // 应用权重合并结果
+        const chunkArray = chunkOut.dataSync()
         const effectiveWeight = weight.slice(0, chunkLength);
         for (let s = 0; s < lenModelSources; s++) {
             for (let c = 0; c < channels; c++) {
                 for (let i = 0; i < chunkLength; i++) {
                     const outIdx = ((s * channels + c) * length) + chunkStart + i;
                     const inIdx = (s * channels + c) * chunkLength + i;
-                    output[outIdx] += chunkOut[inIdx] * effectiveWeight[i];
+                    output[outIdx] += chunkArray[inIdx] * effectiveWeight[i];
                     sumWeight[chunkStart + i] += effectiveWeight[i];
                 }
             }
         }
     }
-
+    
     // 归一化处理
     for (let s = 0; s < lenModelSources; s++) {
         for (let c = 0; c < channels; c++) {
@@ -220,9 +221,80 @@ async function applyModel() {
             }
         }
     }
+    const resBlobs = []
+    for(let i=0;i<4;i++) {
+        let audioBuffer = createAudioBufferFromSource(i, output)
+        let audioBlob = audioBufferToWav(audioBuffer)
+        resBlobs.push(audioBlob)
+    }
+    return resBlobs
+}
 
-    result = output;
-    return result
+function audioBufferToWav(audioBuffer, mimeType = 'audio/wav') {
+    const numOfChan = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length * numOfChan * 2; // 16-bit PCM
+    const buffer = new ArrayBuffer(44 + length);
+    const view = new DataView(buffer);
+    const sampleRate = 44100
+    let offset = 0;
+
+    function writeString(str) {
+        for (let i = 0; i < str.length; i++) {
+            view.setUint8(offset++, str.charCodeAt(i));
+        }
+    }
+
+    // RIFF identifier
+    writeString('RIFF');
+    view.setUint32(offset, 36 + length, true); offset += 4;
+    writeString('WAVE');
+    writeString('fmt ');
+    view.setUint32(offset, 16, true); offset += 4;
+    view.setUint16(offset, 1, true); offset += 2; // PCM format
+    view.setUint16(offset, numOfChan, true); offset += 2;
+    view.setUint32(offset, sampleRate, true); offset += 4;
+    view.setUint32(offset, sampleRate * numOfChan * 2, true); offset += 4;
+    view.setUint16(offset, numOfChan * 2, true); offset += 2;
+    view.setUint16(offset, 16, true); offset += 2;
+
+    writeString('data');
+    view.setUint32(offset, length, true); offset += 4;
+
+    // Write interleaved PCM data
+    for (let i = 0; i < audioBuffer.length; i++) {
+        for (let ch = 0; ch < numOfChan; ch++) {
+            const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(ch)[i]));
+            view.setInt16(offset, sample * 0x7FFF, true);
+            offset += 2;
+        }
+    }
+
+    return new Blob([view], { type: mimeType });
+}
+
+function createAudioBufferFromSource(sourceIndex, output) {
+    const sampleRate = 44100;
+    const duration = 7; // seconds
+    const channels = 2; // stereo
+    const samplesPerChannel = sampleRate * duration; // 308700
+    const samplesPerSource = samplesPerChannel * channels; // 617400
+    const totalSources = 4;
+    const startIdx = sourceIndex * samplesPerSource;
+    const audioBuffer = new AudioBuffer({
+        length: samplesPerChannel,
+        numberOfChannels: channels,
+        sampleRate: sampleRate
+    });
+
+    for (let ch = 0; ch < channels; ch++) {
+        const channelData = audioBuffer.getChannelData(ch);
+        for (let i = 0; i < samplesPerChannel; i++) {
+            const idx = startIdx + i * channels + ch;
+            channelData[i] = output[idx];
+        }
+    }
+
+    return audioBuffer;
 }
 
 function normalizeInputs(paddedMix, mag) {
@@ -231,12 +303,14 @@ function normalizeInputs(paddedMix, mag) {
         const input1 = paddedMix;
         const input1Mean = input1.mean();
         const input1Std = input1.sub(input1Mean).square().mean().sqrt();
-        const normalizedInput1 = input1.sub(input1Mean).div(input1Std.add(1e-5));
+        const input1Temp = input1.sub(input1Mean).div(input1Std.add(1e-5));
         
         // 标准化mag (input2)
         const meanMag = mag.mean();
         const stdMag = mag.sub(meanMag).square().mean().sqrt();
         const normalizedInput2 = mag.sub(meanMag).div(stdMag.add(1e-5));
+        const originalShape = input1Temp.shape
+        const normalizedInput1 = input1Temp.reshape([1, ...originalShape])
         
         return {
             normalizedInput1,  // 对应Python中的input1
@@ -250,8 +324,8 @@ function normalizeInputs(paddedMix, mag) {
 async function processModelOutput(x, xt, mean_mag, std_mag, input2Shape) {
     return tf.tidy(() => {
         // 1. 将 ONNX Tensor 转换为 TensorFlow.js 张量
-        const xTensor = tf.tensor(x.data, x.dims, x.type);
-        const xtTensor = tf.tensor(xt.data, xt.dims, xt.type);
+        let xTensor = tf.tensor(x.data, x.dims, x.type);
+        let xtTensor = tf.tensor(xt.data, xt.dims, xt.type);
         // 2. 获取形状参数
         const S = 4;  // 源的数量
         const [B, C, Fq, T] = input2Shape;  // 从原始 mag 输入获取形状
@@ -286,12 +360,11 @@ async function runONNXModel(session, normalizedInput1, normalizedInput2) {
         mix: input1Tensor,
         mag: input2Tensor
     };
-    
     // 运行模型
     const results = await session.run(feeds);
     // 提取输出
-    const x = results.x;  // 假设输出名称为'x'
-    const xt = results.xt; // 假设输出名称为'xt'
+    let x = results.x;  // 假设输出名称为'x'
+    let xt = results.xt; // 假设输出名称为'xt'
     
     // 返回结果
     return { x, xt };
@@ -307,10 +380,11 @@ async function runModel(mixTensor, segment, samplerate) {
     // 填充音频到有效长度
     const paddedMix = padTensor(mixTensor, validLength);
     // 生成频谱特征
+    debugger
     const z = computeSpectrogram(paddedMix);
     const mag = demucsMagnitude(z);
     const { normalizedInput1, normalizedInput2, meanMag, stdMag } = normalizeInputs(
-        tf.tensor(paddedMix.cpuData, paddedMix.dims),
+        convertOnnxTensorToTf(paddedMix),
         mag
     );
     const results = await runONNXModel(modelSession, normalizedInput1, normalizedInput2)
@@ -323,21 +397,56 @@ async function runModel(mixTensor, segment, samplerate) {
     );
     // 7. 清理资源
     tf.dispose([normalizedInput1, normalizedInput2])
+    // await saveTensorToIndexedDB(x, 'x')
+    // await saveTensorToIndexedDB(xt, 'xt')
+    // await saveTensorToIndexedDB(convertToTFTensor(paddedMix), 'paddedMix')
+    console.log(segment)
+    console.log(samplerate)
+    console.log(B)
+    console.log(S)
+    // const B = 1; // 假设B为1，因为我们处理的是单个音频
+    // const S = 4; // 假设S为4，因为我们处理的是4个源
+    // let x = await loadTensorFromIndexedDB('x')
+    // let xt = await loadTensorFromIndexedDB('xt')
+    // const temp = await loadTensorFromIndexedDB('paddedMix')
+    // const paddedMix = await convertFromTFTensor(temp)
+    // console.log('x:', x)
+    // console.log('xt:', xt)
+    // console.log('paddedMix:', paddedMix)
     const out = demucsPostProcess(x, xt, paddedMix, segment, samplerate, B, S);
-    return centerTrim(out)
+    // const length = 220500
+    return centerTrim(out, length)
 }
 
 function convertOnnxTensorToTf(onnxTensor) {
-    // 获取原始数据（注意：这可能是一个 TypedArray，如 Float32Array）
     const data = onnxTensor.data;
-    
-    // 获取维度信息
     const dims = onnxTensor.dims;
-
-    // 创建 TensorFlow.js Tensor
-    return tf.tensor(data, dims);
+    
+    // 检查维度是否符合预期结构 [batch_size, num_channels, length]
+    if (dims.length !== 3 || dims[0] !== 1) {
+        throw new Error("Expected dims format: [1, num_channels, length]");
+    }
+    
+    const numChannels = dims[1];
+    const length = dims[2];
+    const totalElements = numChannels * length;
+    
+    // 创建通道分离后的新数组
+    const separatedData = [];
+    for (let channel = 0; channel < numChannels; channel++) {
+        separatedData[channel] = [];
+    }
+    
+    // 将交错数据分配到对应通道
+    for (let i = 0; i < totalElements; i++) {
+        const channel = i % numChannels;  // 确定当前元素所属的通道
+        const index = Math.floor(i / numChannels);  // 确定在通道内的位置
+        separatedData[channel][index] = data[i];
+    }
+    
+    // 创建TensorFlow张量 (形状 [num_channels, length])
+    return tf.tensor(separatedData, [numChannels, length]);
 }
-
 /**
  * 在 TensorFlow.js 中模拟 PyTorch 的 pad1d 功能，仅对最后一个维度进行填充
  *
@@ -348,7 +457,6 @@ function convertOnnxTensorToTf(onnxTensor) {
  * @returns {tf.Tensor}
  */
 function pad1d(x, paddings, mode = 'constant', value = 0) {
-    console.log("Input tensor shape:", x.shape);
     const shape = x.shape;
     const rank = shape.length;
     const length = shape[rank - 1];
@@ -445,26 +553,28 @@ function demucsMask(m) {
 
 function processSpectro(z, le) {
     return tf.tidy(() => {
-        // 检查并转换复数输入为实数（幅度谱）
-        if (z.dtype === 'complex64') {
-            z = tf.abs(z);
-        }
-
+        const real = tf.real(z);
+        const imag = tf.imag(z)
         const rank = z.rank;
         // 步骤1: 裁剪频率维度（倒数第二维去掉最后一个元素）
-        const zCropped = tf.slice(
-            z,
+        const realCropped = tf.slice(
+            real,
             Array(rank).fill(0), // [0,0,...]
-            z.shape.map((d, i) => (i === rank - 2) ? d - 1 : d) // [..., :-1, :]
+            real.shape.map((d, i) => (i === rank - 2) ? d - 1 : d) // [..., :-1, :]
+        );
+        const imagCropped = tf.slice(
+            imag,
+            Array(rank).fill(0), // [0,0,...]
+            imag.shape.map((d, i) => (i === rank - 2) ? d - 1 : d) // [..., :-1, :]
         );
 
         // 步骤2: 检查时间维度长度（Python中的assert）
-        const timeDim = zCropped.shape[rank - 1];
+        const timeDim = realCropped.shape[rank - 1];
         if (timeDim !== le + 4) {
             console.warn("Shape mismatch warning:", {
                 expected: le + 4,
                 got: timeDim,
-                fullShape: zCropped.shape
+                fullShape: realCropped.shape
             });
         }
 
@@ -472,26 +582,29 @@ function processSpectro(z, le) {
         const begin = Array(rank).fill(0);
         begin[rank - 1] = 2; // 时间维度起始索引
         
-        const size = [...zCropped.shape];
+        const size = [...realCropped.shape];
         size[rank - 1] = le; // 时间维度切片长度
-        
-        return tf.slice(zCropped, begin, size);
+        const realPart = tf.slice(realCropped, begin, size)
+        const imagPart = tf.slice(imagCropped, begin, size)
+        return tf.complex(realPart, imagPart);
     });
 }
 
 const spectro = (audioData, nfft = 4096, hl = 1024) => {
+    
     const inputShape = audioData.shape;
     const otherDims = inputShape.slice(0, -1);
     const length = inputShape[inputShape.length - 1];
     const totalBatch = otherDims.reduce((acc, dim) => acc * dim, 1);
     
-    const x = audioData.reshape([totalBatch, length]).toFloat();
+    let x = audioData.reshape([totalBatch, length]).toFloat();
     
     const padStart = Math.floor(nfft / 2);
     const padEnd = Math.ceil(nfft / 2);
     
     return tf.tidy(() => {
-        const padded = tf.pad(x, [[0, 0], [padStart, padEnd]], 'reflect');
+        
+        const padded = tf.mirrorPad(x, [[0, 0], [padStart, padEnd]], 'reflect');
         const paddedLength = padded.shape[1];
         
         const numFrames = Math.floor((paddedLength - nfft) / hl) + 1;
@@ -501,7 +614,6 @@ const spectro = (audioData, nfft = 4096, hl = 1024) => {
         const normFactor = 1 / winNorm.dataSync()[0];
         
         const windowedData = [];
-        
         // 逐帧处理，避免创建大张量
         for (let b = 0; b < totalBatch; b++) {
             const batchFrames = [];
@@ -560,10 +672,8 @@ const spectro = (audioData, nfft = 4096, hl = 1024) => {
             tf.tensor(transposedData.filter((_, i) => i % 2 === 0), [totalBatch, numFreqs, numFrames]),
             tf.tensor(transposedData.filter((_, i) => i % 2 === 1), [totalBatch, numFreqs, numFrames])
         );
-        
         // 恢复原始维度
         const outputShape = [...otherDims, numFreqs, numFrames];
-        spectroRes = transposed.reshape(outputShape)
         return transposed.reshape(outputShape);
     });
 };
@@ -580,7 +690,9 @@ function computeSpectrogram(audioData) {
     audioData = pad1d(convertOnnxTensorToTf(audioData), [pad, pad + le * hl - audioData.dims[2]], "reflect")
     const z = spectro(audioData, nfft, hl);
     const result = processSpectro(z, le)
-    return result
+    
+    const shape = result.shape;
+    return result.reshape([1, ...shape])
 }
 
 
@@ -606,10 +718,9 @@ function demucsMagnitude(z, cac = true) {
                 // 如果不是复数，转换为复数（实部=z，虚部=0）
                 z = tf.complex(z, tf.zerosLike(z));
             }
-            
             // 将复数张量转换为实部虚部分离的形式 [B, C, Fr, T, 2]
-            const complexParts = tf.stack([tf.real(z), tf.imag(z)], -1);
-            
+            const complexTemp = tf.stack([tf.real(z), tf.imag(z)], -1);
+            const complexParts = complexTemp.reshape([B, C, Fr, T, 2]);
             // 调整维度顺序: [B, C, Fr, T, 2] => [B, C, 2, Fr, T]
             const permuted = complexParts.transpose([0, 1, 4, 2, 3]);
             
@@ -636,7 +747,7 @@ function demucsMagnitude(z, cac = true) {
  * @returns {tf.Tensor} 时域信号
  */
 async function demucsIspec(z, length = null, nfft = 4096, scale = 0) {
-    return tf.tidy(() => {
+    return tf.tidy(async () => {
         // 1. 转换PyTorch复数张量为TensorFlow.js格式
         //    [B, S, C, F, T] -> [B, S, C, F, T, 2]
         const complexTensor = convertPyTorchComplexToTFJS(z);
@@ -694,8 +805,7 @@ async function demucsIspec(z, length = null, nfft = 4096, scale = 0) {
         }
         const le = hl * Math.ceil(length / hl) + 2 * pad;
         // 7. 执行逆短时傅里叶变换
-        const x = demucsIspectro(padded, hl, le);
-        
+        let x = istft(padded, hl, le)
         // 8. 裁剪到所需长度
         const start = pad;
         const end = start + length;
@@ -732,6 +842,58 @@ function convertPyTorchComplexToTFJS(tensor) {
     });
 }
 
+function istftSync(paddedTensor, n_fft = 4096, hop_length = 1024) {
+    return tf.tidy(() => {
+      // 1. 分离实部和虚部（同步操作）
+      const real = paddedTensor.slice([0, 0, 0, 0], [-1, -1, -1, 1]).squeeze([3]);
+      const imag = paddedTensor.slice([0, 0, 0, 1], [-1, -1, -1, 1]).squeeze([3]);
+      const complex = tf.complex(real, imag);
+  
+      // 2. 构建完整频谱（共轭对称）
+      const firstHalf = complex.slice([0, 0, 0], [-1, 2049, -1]);
+      const rest = firstHalf.slice([0, 1, 0], [-1, 2047, -1]);
+      const conjFlip = tf.conj(rest).reverse(1);
+      const fullSpectrum = tf.concat([firstHalf, conjFlip], 1);
+  
+      // 3. 逆FFT（同步操作）
+      const permuted = fullSpectrum.transpose([0, 2, 1]); // [batch, time, n_fft]
+      const ifft = tf.spectral.ifft(permuted);
+      const realPart = tf.real(ifft); // [batch, time, n_fft]
+  
+      // 4. 窗函数（同步生成）
+      const win = tf.signal.hannWindow(n_fft);
+  
+      // 5. 初始化输出缓冲区
+      const batch = realPart.shape[0];
+      const n_frames = realPart.shape[1];
+      const length = (n_frames - 1) * hop_length + n_fft;
+      const output = tf.buffer([batch, length]);
+      const windowSum = tf.buffer([batch, length]);
+  
+      // 6. 同步重叠-相加
+      for (let t = 0; t < n_frames; t++) {
+        const start = t * hop_length;
+        const frame = realPart.slice([0, t, 0], [-1, 1, -1]).squeeze([1]);
+        const windowed = frame.mul(win);
+  
+        // 直接操作Buffer（同步写入）
+        for (let b = 0; b < batch; b++) {
+          for (let i = 0; i < n_fft; i++) {
+            const pos = start + i;
+            output.values[b * length + pos] += windowed.arraySync()[b][i];
+            windowSum.values[b * length + pos] += win.arraySync()[i] ** 2;
+          }
+        }
+      }
+  
+      // 7. 转换为Tensor并归一化
+      const outputTensor = tf.tensor(output.values, [batch, length]);
+      const windowSumTensor = tf.tensor(windowSum.values, [batch, length]);
+      return outputTensor.div(windowSumTensor.add(1e-10));
+    });
+}
+
+
 /**
  * Demucs 逆频谱转换 (TensorFlow.js 实现)
  * @param {tf.Tensor} z - 输入复数频谱张量 [..., freqs, frames]
@@ -741,7 +903,7 @@ function convertPyTorchComplexToTFJS(tensor) {
  * @returns {tf.Tensor} 时域信号
  */
 async function demucsIspectro(z, hopLength = null, length = null, pad = 0) {
-    return tf.tidy(() => {
+    return tf.tidy(async () => {
         // 1. 获取输入形状
         const shape = z.shape;
         const otherDims = shape.slice(0, -2); // 除最后两个维度外的其他维度
@@ -770,10 +932,7 @@ async function demucsIspectro(z, hopLength = null, length = null, pad = 0) {
             center: true,
             normalized: true
         };
-        
-        let x = tf.signal.inverse_stft(reshapedZ, config);
-        
-        // 7. 如果指定了长度，进行裁剪
+        let x = istftSync(reshapedZ)
         if (length !== null) {
             const currentLength = x.shape[x.shape.length - 1];
             if (length < currentLength) {
@@ -785,7 +944,6 @@ async function demucsIspectro(z, hopLength = null, length = null, pad = 0) {
         // 8. 恢复原始形状 [batch, length] -> [...otherDims, length]
         const outputShape = [...otherDims, x.shape[1]];
         x = x.reshape(outputShape);
-        
         return x;
     });
 }
@@ -833,7 +991,6 @@ function centerTrim(tensor, reference) {
     
     begin[rank - 1] = start; // 最后一维的开始位置
     size[rank - 1] = end - start; // 最后一维的新长度
-
     return tf.tidy(() => {
         return tensor.slice(begin, size);
     });
@@ -974,54 +1131,227 @@ function applyWindow(frame, window) {
     });
 }
 
-/**
- * Demucs 后处理函数 (TensorFlow.js 实现)
- * @param {tf.Tensor} m - 模型输出的掩码张量 [B, S, C, Fr, T]
- * @param {tf.Tensor} xt - 模型输出的时域信号 [B, S, T]
- * @param {tf.Tensor} padded_m - 原始填充的输入信号 [B, C, T]
- * @param {number} segment - 音频段长度（秒）
- * @param {number} samplerate - 采样率（Hz）
- * @param {number} B - 批大小
- * @param {number} S - 源数量
- * @returns {tf.Tensor} 处理后的时域信号 [B, S, T]
- */
-async function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
-    return tf.tidy(async () => {
-        // 1. 计算训练长度（采样点数）
+function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
+    return tf.tidy(() => {
+        // 1. 计算训练长度
         const training_length = Math.floor(segment * samplerate);
         
-        // 2. 应用掩码转换（复数频谱）
-        const zout = demucsMask(m);
+        // 2. 应用掩码转换（内联demucsMask）
+        const [batchSize, numSources, numChannels, freqs, frames] = m.shape;
+        if (numChannels % 2 !== 0) throw new Error(`通道数必须是偶数，当前为: ${numChannels}`);
+        
+        const reshaped = m.reshape([batchSize, numSources, numChannels/2, 2, freqs, frames]);
+        const permuted = reshaped.transpose([0, 1, 2, 4, 5, 3]);
+        let real = permuted.slice([0,0,0,0,0,0], [-1,-1,-1,-1,-1,1]).squeeze([5]);
+        let imag = permuted.slice([0,0,0,0,0,1], [-1,-1,-1,-1,-1,1]).squeeze([5]);
+        const zout = tf.complex(real, imag);
+        // 3. 执行逆频谱转换（内联demucsIspec/demucsIspectro）
+        const nfft = 4096;
+        const scale = 0;
+        const hopLength = Math.floor(nfft / 4);
+        const hl = Math.floor(hopLength / Math.pow(4, scale));
+        const pad = Math.floor(hl / 2) * 3;
+        const le = hl * Math.ceil(training_length / hl) + 2 * pad;
+        
+        // 处理复数张量
+        const [B1, S1, C1, F, T] = zout.shape;
+        const reshapedZ = zout.reshape([B1*S1*C1, F, T]);
+        const cpuReal = tf.real(reshapedZ).reshape([B1*S1*C1, F, T]).arraySync();
+        const cpuImag = tf.imag(reshapedZ).reshape([B1*S1*C1, F, T]).arraySync();
+        // 创建CPU张量
+        real = tf.tensor(cpuReal, reshapedZ.shape, 'float32');
+        imag = tf.tensor(cpuImag, reshapedZ.shape, 'float32');
+
+        // 执行填充操作
+        let paddedReal = tf.pad(real, [[0,0], [0,1], [0,0]]);
+        paddedReal = tf.pad(paddedReal, [[0,0], [0,0], [2,2]]);
+        let paddedImag = tf.pad(imag, [[0,0], [0,1], [0,0]]);
+        paddedImag = tf.pad(paddedImag, [[0,0], [0,0], [2,2]]);
+
+        
+        // 重新组合为复数张量（在原始后端执行）
+        const padded = tf.complex(paddedReal, paddedImag);
+        // 执行逆STFT
+        const x = istftForDemucs2(padded, hl, le, nfft);
+        // 裁剪信号
+        const start = pad;
+        const end = start + training_length;
+        
+        const cropped = x.slice([0,start], [-1,end-start]);
+        const x_time = cropped.reshape([B1, S1, C1, end-start]);
+        const trimmedTensor = x_time.slice(
+            [0, 0, 0, 2],  // 从第3个时间步开始
+            [-1, -1, -1, -1] // 保持其他维度不变，取剩余所有时间步
+        );
         debugger
-        // 3. 执行逆频谱转换
-        const x = await demucsIspec(zout, training_length);
-        
-        // 4. 计算原始输入的均值和标准差
-        const reductionIndices = [1, 2]; // 对应dim=(1,2)
-        const keepDims = true;
-        
-        const meant = padded_m.mean(reductionIndices, keepDims);
-        const stdt = padded_m.std(reductionIndices, keepDims);
-        
+        // 4. 计算均值和标准差
+        const reductionIndices = [1, 2];
+        const padded_t = tf.tensor(padded_m.cpuData, padded_m.dims, 'float32');
+        const meant = padded_t.mean(reductionIndices, true);
+        const tempt = padded_t.sub(meant).square().mean().sqrt();
+        const stdt = tempt.reshape(meant.shape)
         // 5. 处理xt张量
         let processed_xt = xt.reshape([B, S, -1, training_length]);
-        
-        // 6. 反标准化xt (xt = xt * stdt + meant)
-        const expanded_stdt = stdt.expandDims(1); // 添加S维度
-        const expanded_meant = meant.expandDims(1); // 添加S维度
-        
+        // 6. 反标准化
+        const expanded_stdt = stdt.expandDims(1);
+        const expanded_meant = meant.expandDims(1);
         processed_xt = processed_xt.mul(expanded_stdt).add(expanded_meant);
-        
-        // 7. 合并结果 (out = xt + x)
-        // 需要确保x的形状与processed_xt匹配
-        const expanded_x = x.expandDims(1); // 添加S维度 [B,1,T] -> [B,S,T]
-        
-        const out = processed_xt.add(expanded_x);
-        
-        return out;
+        // 7. 合并结果
+        return processed_xt.add(trimmedTensor);
     });
 }
 
+function istftForDemucs(stft, hop_length, length, n_fft = 4096) {
+    return tf.tidy(() => {
+        const [batch, freqs, frames] = stft.shape;
+        const outputLength = (frames - 1) * hop_length + n_fft;
+        // 分离实部和虚部
+        const real = tf.real(stft);
+        const imag = tf.imag(stft);
+        
+        // 构建完整频谱（拆分实虚部分别处理）
+        const firstReal = real.slice([0,0,0], [-1,2049,-1]);
+        const firstImag = imag.slice([0,0,0], [-1,2049,-1]);
+        const firstHalf = tf.complex(firstReal, firstImag);
+
+        // 分离rest的实部和虚部后反转
+        const restReal = real.slice([0,1,0], [-1,2047,-1]).reverse(1);
+        const restImag = imag.slice([0,1,0], [-1,2047,-1]).reverse(1);
+        const conjFlip = tf.complex(restReal, tf.mul(restImag, -1));
+
+        const fullSpectrum = tf.concat([firstHalf, conjFlip], 1);
+        // 执行逆FFT
+        const permuted = fullSpectrum.transpose([0,2,1]);
+        const ifft = tf.spectral.ifft(permuted);
+        const realPart = tf.real(ifft);
+        
+        // 应用窗函数和重叠相加
+        const win = tf.signal.hannWindow(n_fft);
+        const outputBuf = tf.buffer([batch, outputLength]);
+        const windowSumBuf = tf.buffer([batch, outputLength]);
+        
+        const winData = win.arraySync();
+        const realData = realPart.reshape([batch, frames, n_fft]).arraySync();
+        for (let b = 0; b < batch; b++) {
+            for (let t = 0; t < frames; t++) {
+                const start = t * hop_length;
+                for (let i = 0; i < n_fft; i++) {
+                    const idx = b * outputLength + start + i;
+                    const value = realData[b][t][i] * winData[i];
+                    
+                    outputBuf.values[idx] += value;
+                    windowSumBuf.values[idx] += winData[i] * winData[i];
+                }
+            }
+        }
+        
+        // 归一化并裁剪
+        const output = outputBuf.toTensor();
+        const windowSum = windowSumBuf.toTensor();
+        const result = output.div(windowSum.add(1e-10));
+        
+        if (length < outputLength) {
+            const start = Math.floor((outputLength - length) / 2);
+            return result.slice([0, start], [batch, length]);
+        }
+        return result;
+    });
+}
+
+function istftForDemucs2(stft, hop_length, length, n_fft) {
+    // 获取输入张量的形状
+    const [batchSize, numFreqs, numFrames] = stft.shape;
+    
+    // 验证参数
+    if (n_fft !== 2 * (numFreqs - 1)) {
+        throw new Error(`n_fft (${n_fft}) 与频率维度不匹配 (${numFreqs})`);
+    }
+
+    // 计算STFT阶段使用的填充量
+    const padStart = Math.floor((n_fft - hop_length) / 2);
+    const padEnd = Math.floor((n_fft - hop_length + 1) / 2);
+    const paddedLength = length + padStart + padEnd;
+
+    // 创建汉宁窗
+    const hannWindow = tf.signal.hannWindow(n_fft);
+    const winData = hannWindow.dataSync();
+    
+    // 缩放因子
+    const fftScale = 1 / n_fft;
+    const winPower = tf.sum(tf.square(hannWindow)).dataSync()[0];
+    const overlapCorrection = winPower * n_fft / (hop_length * numFrames);
+    const winNorm = 1 / Math.sqrt(overlapCorrection);
+
+    // 准备输出缓冲区 (包含填充区域)
+    const outputSignal = new Float32Array(batchSize * paddedLength);
+    const outputWeight = new Float32Array(batchSize * paddedLength);
+
+    // 获取STFT的实部和虚部数据
+    const stftReal = tf.real(stft).dataSync();
+    const stftImag = tf.imag(stft).dataSync();
+
+    // 遍历每个批次
+    for (let b = 0; b < batchSize; b++) {
+        // 遍历每一帧
+        for (let t = 0; t < numFrames; t++) {
+            // 1. 准备当前帧的频谱
+            const spectrum = [];
+            for (let f = 0; f < numFreqs; f++) {
+                const idx = b * numFreqs * numFrames + f * numFrames + t;
+                spectrum.push([stftReal[idx], stftImag[idx]]);
+            }
+            
+            // 2. 重建完整频谱
+            const fullSpectrum = new Array(n_fft);
+            for (let k = 0; k < numFreqs; k++) {
+                fullSpectrum[k] = spectrum[k];
+            }
+            for (let k = 1; k < numFreqs - 1; k++) {
+                const [real, imag] = spectrum[k];
+                fullSpectrum[n_fft - k] = [real, -imag];
+            }
+            
+            // 3. 计算IFFT
+            const frameComplex = ifft(fullSpectrum);
+            
+            // 4. 提取实部并加窗
+            const frameReal = frameComplex.map((val, idx) => 
+                val[0] * winData[idx] * winNorm * fftScale
+            );
+            
+            // 5. 重叠-相加重建
+            const start = t * hop_length;
+            for (let i = 0; i < n_fft; i++) {
+                const pos = start + i;
+                if (pos >= paddedLength) continue;
+                
+                const idx = b * paddedLength + pos;
+                outputSignal[idx] += frameReal[i];
+                outputWeight[idx] += winData[i] * winData[i];
+            }
+        }
+    }
+
+    // 归一化处理
+    for (let i = 0; i < outputSignal.length; i++) {
+        if (outputWeight[i] > 1e-10) {
+            outputSignal[i] /= outputWeight[i];
+        }
+    }
+
+    // 去除填充区域
+    const unpaddedLength = paddedLength - padStart - padEnd;
+    const unpaddedSignal = new Float32Array(batchSize * unpaddedLength);
+    
+    for (let b = 0; b < batchSize; b++) {
+        for (let i = 0; i < unpaddedLength; i++) {
+            const srcIndex = b * paddedLength + padStart + i;
+            unpaddedSignal[b * unpaddedLength + i] = outputSignal[srcIndex];
+        }
+    }
+
+    return tf.tensor2d(unpaddedSignal, [batchSize, unpaddedLength]);
+}
 
 export default {
     loadONNXModel,
