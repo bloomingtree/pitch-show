@@ -19,66 +19,88 @@ function openTensorDatabase() {
         request.onerror = (event) => reject(event.target.error);
     });
 }
-
 /**
- * 将 Tensor 保存到 IndexedDB
- * @param {tf.Tensor} tensor - 要保存的 Tensor
+ * 将包含 Tensor 的数组保存到 IndexedDB
+ * @param {Array<{future: tf.Tensor, offset: number}>} array - 要保存的数组
  * @param {string} name - 存储名称
  */
-async function saveTensorToIndexedDB(tensor, name) {
-    const data = await tensor.array();
-    const tensorData = {
+async function saveTensorArrayToIndexedDB(array, name) {
+    const db = await openTensorDatabase();
+
+    const storageArray = await Promise.all(array.map(async (item) => {
+        const tensor = item.future;
+        const arrayData = await tensor.array();
+        return {
+            type: 'TensorWrapper',
+            data: arrayData,
+            shape: tensor.shape,
+            dtype: tensor.dtype,
+            offset: item.offset
+        };
+    }));
+
+    const storeData = {
         name,
-        data,
-        shape: tensor.shape,
-        dtype: tensor.dtype,
+        type: 'TensorArray',
+        data: storageArray,
         timestamp: Date.now()
     };
-    
-    const db = await openTensorDatabase();
-    
+
     return new Promise((resolve, reject) => {
         const transaction = db.transaction('tensors', 'readwrite');
         const store = transaction.objectStore('tensors');
-        
-        const request = store.put(tensorData);
-        
+        const request = store.put(storeData);
+
         request.onsuccess = () => {
-            console.log(`Tensor saved to IndexedDB with name "${name}"`);
+            console.log(`Tensor array saved to IndexedDB with name "${name}"`);
             resolve();
         };
-        
-        request.onerror = (event) => reject(event.target.error);
+
+        request.onerror = (event) => {
+            console.error(`Failed to save tensor array to IndexedDB:`, event.target.error);
+            reject(event.target.error);
+        };
     });
 }
-
 /**
- * 从 IndexedDB 加载 Tensor
+ * 从 IndexedDB 加载包含 Tensor 的数组
  * @param {string} name - 存储名称
- * @returns {Promise<tf.Tensor>}
+ * @returns {Promise<Array<{future: tf.Tensor, offset: number}> | null>}
  */
-async function loadTensorFromIndexedDB(name) {
+async function loadTensorArrayFromIndexedDB(name) {
     const db = await openTensorDatabase();
-    
+
     return new Promise((resolve, reject) => {
         const transaction = db.transaction('tensors', 'readonly');
         const store = transaction.objectStore('tensors');
-        
-        const request = store.get(name);
-        
+        const request = store.get(name); // 假设 name 是主键
+
         request.onsuccess = (event) => {
-            const tensorData = event.target.result;
-            if (!tensorData) {
-                reject(new Error(`No tensor found with name "${name}"`));
-                return;
+            const storedData = event.target.result;
+
+            if (!storedData || storedData.type !== 'TensorArray') {
+                console.warn(`No tensor array found in IndexedDB with name "${name}"`);
+                return resolve(null);
             }
-            
-            const tensor = tf.tensor(tensorData.data, tensorData.shape, tensorData.dtype);
-            console.log(`Tensor loaded from IndexedDB with name "${name}"`);
-            resolve(tensor);
+
+            const { data: storageArray } = storedData;
+
+            const resultArray = storageArray.map(item => {
+                const { data, shape, dtype, offset } = item;
+                const tensor = tf.tensor(data, shape, dtype);
+                return {
+                    future: tensor,
+                    offset
+                };
+            });
+
+            resolve(resultArray);
         };
-        
-        request.onerror = (event) => reject(event.target.error);
+
+        request.onerror = (event) => {
+            console.error(`Failed to load tensor array from IndexedDB:`, event.target.error);
+            reject(event.target.error);
+        };
     });
 }
 
@@ -119,8 +141,8 @@ async function convertFromTFTensor(tensor) {
 }
 
 export {
-    loadTensorFromIndexedDB,
-    saveTensorToIndexedDB,
+    saveTensorArrayToIndexedDB,
+    loadTensorArrayFromIndexedDB,
     convertFromTFTensor,
     convertToTFTensor
 }

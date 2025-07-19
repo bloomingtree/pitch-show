@@ -3,8 +3,7 @@ import { InferenceSession, Tensor } from 'onnxruntime-web';
 import * as ort from 'onnxruntime-web';
 import * as tf from '@tensorflow/tfjs';
 import { fft, ifft } from 'fft-js'
-import {saveTensorToIndexedDB, loadTensorFromIndexedDB, 
-    convertToTFTensor, convertFromTFTensor
+import {saveTensorArrayToIndexedDB, loadTensorArrayFromIndexedDB, 
 } from "./tensorUtils.js"
 
 let modelSession
@@ -106,42 +105,40 @@ async function loadAudio(audioFile) {
     inputTensor = new Tensor('float32', processed, [1, 2, samples]);
 }
 
-// 在文件顶部添加新的辅助函数
-function padChunk(tensor, offset, targetLength) {
-    const [B, C, T] = tensor.dims;
-    const totalLength = T;
-
-    // 计算当前窗口需要覆盖的范围
-    const start = targetLength - (tensor.dims[2] || 0); // 注意：这里才是以 offset 为起点的扩展
+function padChunk(tensor, offset, length, targetLength) {
+    // 解构张量属性
+    const { data, dims, type } = tensor;
+    const totalLength = dims[dims.length - 1]; // 最后一维是时间轴长度
+    
+    // 1. 计算填充参数
+    const delta = targetLength - length;
+    const start = offset - Math.floor(delta / 2);
     const end = start + targetLength;
-
-    // 调整有效范围
+    
+    // 2. 计算实际可截取的范围（防止越界）
     const correctStart = Math.max(0, start);
     const correctEnd = Math.min(totalLength, end);
-
-    // 填充量
-    const padLeft = correctStart - start;
-    const padRight = end - correctEnd;
-
-    // 创建新数组并填充
-    const paddedData = new Float32Array(B * C * targetLength);
-    const sourceData = tensor.data.subarray(correctStart * C, correctEnd * C);
-
-    // 填充左侧
-    if (padLeft > 0) {
-        paddedData.set(new Float32Array(padLeft * C), 0);
-    }
-    // 填充主数据
-    paddedData.set(sourceData, padLeft * C);
-    // 填充右侧
-    if (padRight > 0) {
-        const rightStart = (padLeft + (correctEnd - correctStart)) * C;
-        paddedData.set(new Float32Array(padRight * C), rightStart);
-    }
-
-    return new ort.Tensor('float32', paddedData, [B, C, targetLength]);
+    
+    // 4. 计算新张量的形状
+    const newDims = [...dims];
+    newDims[newDims.length - 1] = targetLength; // 最后一维更新为目标长度
+    const totalSize = newDims.reduce((a, b) => a !== 0 ? a * b : b, 0);
+    
+    // 5. 创建新数据数组（初始化为0）
+    const newData = new Float32Array(totalSize);
+    
+    const segment = data.subarray(2*correctStart, 2*correctEnd);
+    newData.set(segment, 0);
+    // 8. 返回新的 ORT 格式张量
+    return {
+        cpuData: newData,
+        data: newData,
+        dims: newDims,
+        type: type,
+        size: totalSize,
+        dataLocation: "cpu"
+    };
 }
-
 // 修改applyModel函数中的分块处理部分
 async function applyModel() {
     const mixTensor = inputTensor;
@@ -157,7 +154,7 @@ async function applyModel() {
     
     // 初始化输出缓冲
     const output = new Float32Array(batch * lenModelSources * channels * length).fill(0);
-    const sumWeight = new Float32Array(length).fill(0);
+    let sumWeight = tf.zeros([length]);
 
     // 创建权重窗口
     const weight = new Float32Array(segmentLength);
@@ -176,76 +173,125 @@ async function applyModel() {
     for (let i = 0; i < weight.length; i++) {
         weight[i] = Math.pow(weight[i] / maxWeight, transitionPower);
     }
-
+    let futures = []
+    const targetLength = Math.floor(segment * samplerate)
     // 分块处理
     for (let offset = 0; offset < length; offset += stride) {
         console.log(offset, length)
         const chunkStart = offset;
         const chunkEnd = Math.min(offset + segmentLength, length);
         const chunkLength = chunkEnd - chunkStart;
+        const chunkTensor = padChunk(mixTensor, chunkStart, chunkLength, targetLength);
         
-        // 提取当前块数据并应用填充
-        const rawChunk = new ort.Tensor(
-            'float32', 
-            mixTensor.data.slice(chunkStart * channels, chunkEnd * channels),
-            [batch, channels, chunkLength]
-        );
-        // 使用新的填充逻辑
-        const chunkTensor = padChunk(rawChunk, chunkStart, segmentLength);
         // 调用runModel处理分块
-        const chunkOut = await runModel(chunkTensor, segment, samplerate);
-        debugger
-        // 应用权重合并结果
-        const chunkArray = chunkOut.dataSync()
-        const effectiveWeight = weight.slice(0, chunkLength);
-        for (let i = 0; i < chunkLength; i++) {
-            sumWeight[chunkStart + i] += effectiveWeight[i];
-        }
-        for (let b = 0; b < batch; b++) {
-            for (let s = 0; s < lenModelSources; s++) {
-                for (let c = 0; c < channels; c++) {
-                    for (let i = 0; i < chunkLength; i++) {
-                        // 计算4维张量的索引 [batch, source, channel, sample]
-                        const outIdx = (
-                            (b * lenModelSources * channels * length) +
-                            (s * channels * length) +
-                            (c * length) +
-                            chunkStart + i
-                        );
-                        
-                        // 计算输入块的索引 [batch, source, channel, sample]
-                        const inIdx = (
-                            (b * lenModelSources * channels * chunkLength) +
-                            (s * channels * chunkLength) +
-                            (c * chunkLength) +
-                            i
-                        );
-                        
-                        output[outIdx] += chunkArray[inIdx] * effectiveWeight[i];
-                    }
-                }
-            }
-        }
+        const chunkOut = await runModel(chunkTensor, segment, samplerate, chunkLength);
+        futures.push({'future': chunkOut, 'offset': offset})
     }
-    
+    let out = tf.zeros([batch, lenModelSources, channels, length]);
+    // 处理所有分块结果
+    for (const future of futures) {
+        const chunkOut = future.future;
+        const offset = future.offset;
+        
+        // 获取当前分块的实际长度
+        const chunkLength = chunkOut.shape[chunkOut.shape.length - 1];
+        
+        // 计算实际可用的分块长度（防止超出总长度）
+        const actualEnd = Math.min(offset + chunkLength, length);
+        const actualChunkLength = actualEnd - offset;
+        
+        // 创建权重切片 (0 到 actualChunkLength)
+        const weightSlice = tf.tensor1d(weight.slice(0, actualChunkLength));
+        
+        // 扩展权重维度以匹配分块输出 [1, 1, 1, actualChunkLength]
+        const expandedWeight = weightSlice.reshape([1, 1, 1, actualChunkLength]);
+        
+        // 应用权重到分块输出（只取实际长度部分）
+        const weightedChunk = chunkOut.slice(
+            [0, 0, 0, 0],
+            [-1, -1, -1, actualChunkLength]
+        ).mul(expandedWeight);
+        
+        // 创建输出切片范围 [所有批次, 所有源, 所有通道, offset 到 offset+actualChunkLength]
+        const outSliceBegin = [0, 0, 0, offset];
+        const outSliceSize = [-1, -1, -1, actualChunkLength];
+        
+        // 获取当前输出切片
+        const currentOutSlice = out.slice(outSliceBegin, outSliceSize);
+        
+        // 更新输出张量
+        const updatedOutSlice = currentOutSlice.add(weightedChunk);
+        
+        // 安全拼接：处理可能的边界情况
+        out = tf.tidy(() => {
+            // 第一部分：从开始到偏移位置
+            const a = offset > 0 ? 
+                out.slice([0, 0, 0, 0], [batch, lenModelSources, channels, offset]) : 
+                tf.zeros([batch, lenModelSources, channels, 0]);
+            
+            // 第二部分：更新后的切片
+            const b = updatedOutSlice;
+            
+            // 第三部分：从更新结束到末尾
+            const cEnd = offset + actualChunkLength;
+            const c = cEnd < length ? 
+                out.slice(
+                    [0, 0, 0, cEnd], 
+                    [batch, lenModelSources, channels, length - cEnd]
+                ) : 
+                tf.zeros([batch, lenModelSources, channels, 0]);
+            
+            // 拼接更新后的张量
+            return tf.concat([a, b, c], 3);
+        });
+        
+        // 更新权重累加张量
+        const currentSumSlice = sumWeight.slice([offset], [actualChunkLength]);
+        const updatedSumSlice = currentSumSlice.add(weightSlice);
+        
+        sumWeight = tf.tidy(() => {
+            // 第一部分：从开始到偏移位置
+            const a = offset > 0 ? 
+                sumWeight.slice([0], [offset]) : 
+                tf.zeros([0]);
+            
+            // 第二部分：更新后的切片
+            const b = updatedSumSlice;
+            
+            // 第三部分：从更新结束到末尾
+            const cEnd = offset + actualChunkLength;
+            const c = cEnd < length ? 
+                sumWeight.slice([cEnd], [length - cEnd]) : 
+                tf.zeros([0]);
+            
+            // 拼接更新后的权重累加
+            return tf.concat([a, b, c], 0);
+        });
+        
+        // 清理中间张量
+        tf.dispose([
+            weightSlice, expandedWeight, weightedChunk, 
+            currentOutSlice, updatedOutSlice
+        ]);
+    }
     // 归一化处理 - 修改索引计算
-    for (let b = 0; b < batch; b++) {
-        for (let s = 0; s < lenModelSources; s++) {
-            for (let c = 0; c < channels; c++) {
-                for (let i = 0; i < length; i++) {
-                    const idx = (
-                        (b * lenModelSources * channels * length) +
-                        (s * channels * length) +
-                        (c * length) +
-                        i
-                    );
-                    output[idx] /= sumWeight[i];
-                }
-            }
-        }
-    }
-    const outputTensor = await loadTensorFromIndexedDB('output')
-    const resBlobs = postProcess(inputTensor, outputTensor.dataSync(), refMean, refStd)
+    out = out.div(sumWeight.reshape([1, 1, 1, length]));
+    // for (let b = 0; b < batch; b++) {
+    //     for (let s = 0; s < lenModelSources; s++) {
+    //         for (let c = 0; c < channels; c++) {
+    //             for (let i = 0; i < length; i++) {
+    //                 const idx = (
+    //                     (b * lenModelSources * channels * length) +
+    //                     (s * channels * length) +
+    //                     (c * length) +
+    //                     i
+    //                 );
+    //                 output[idx] /= sumWeight[i];
+    //             }
+    //         }
+    //     }
+    // }
+    const resBlobs = postProcess(inputTensor, out.dataSync(), refMean, refStd)
     return resBlobs
 }
 
@@ -347,15 +393,15 @@ async function runONNXModel(session, normalizedInput1, normalizedInput2) {
     return { x, xt };
 }
 
-async function runModel(mixTensor, segment, samplerate) {
+async function runModel(mixTensor, segment, samplerate, realLength) {
     const length = mixTensor.dims[2]
     console.log('length:' ,length)
     const validLength = Math.floor(segment * samplerate);
     const batchSize = 1;
     const channels = 2;
-
+    
     // 填充音频到有效长度
-    const paddedMix = padTensor(mixTensor, validLength);
+    const paddedMix = mixTensor
     // 生成频谱特征
     const z = computeSpectrogram(paddedMix);
     const mag = demucsMagnitude(z);
@@ -390,8 +436,7 @@ async function runModel(mixTensor, segment, samplerate) {
     // console.log('xt:', xt)
     // console.log('paddedMix:', paddedMix)
     const out = demucsPostProcess(x, xt, paddedMix, segment, samplerate, B, S);
-    // const length = 220500
-    return centerTrim(out, length)
+    return centerTrim(out, realLength)
 }
 
 function convertOnnxTensorToTf(onnxTensor) {
@@ -940,7 +985,7 @@ function centerTrim(tensor, reference) {
     } else {
         throw new Error('reference 必须是 tf.Tensor 或数字');
     }
-
+    debugger
     // 2. 计算需要裁剪的长度
     const tensorSize = tensor.shape[tensor.shape.length - 1];
     const delta = tensorSize - refSize;
