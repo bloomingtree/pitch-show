@@ -170,11 +170,15 @@ export default {
 
       ctx.stroke();
     },
-    downloadBlob(blob, filename) {
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = filename;
-      link.click();
+    downloadBlob(separatedTracks) {
+
+      Object.entries(separatedTracks).forEach(([name, blob]) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.wav`;
+        a.click();
+      });
     },
     // 修改startAnanlyze方法中的回调处理
     async startAnanlyze() {
@@ -188,9 +192,7 @@ export default {
       this.processNum = 0;
       await separate1.loadAudio(this.songFile)
       const blobs = await separate1.applyModel()
-      this.downloadBlob(blobs[0])
-      this.downloadBlob(blobs[1])
-      this.downloadBlob(blobs[2])
+      this.downloadBlob(blobs)
       // separate.startProcessing(this.songFile, (progress, buffers, downloadLinks) => {
       //   if(progress) {
       //     this.processNum = progress.toFixed(2);

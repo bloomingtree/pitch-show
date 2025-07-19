@@ -9,6 +9,8 @@ import {saveTensorToIndexedDB, loadTensorFromIndexedDB,
 
 let modelSession
 let inputTensor
+let refMean
+let refStd
 let result
 let spectroRes
 const target_sr = 44100
@@ -91,8 +93,8 @@ async function loadAudio(audioFile) {
     for (let i = 0; i < samples; i++) {
         ref[i] = (wav[i * 2] + wav[i * 2 + 1]) / 2;
     }
-    const refMean = ref.reduce((a, b) => a + b, 0) / samples;
-    const refStd = Math.sqrt(ref.reduce((a, b) => a + (b - refMean) ** 2, 0) / samples) + 1e-8;
+    refMean = ref.reduce((a, b) => a + b, 0) / samples;
+    refStd = Math.sqrt(ref.reduce((a, b) => a + (b - refMean) ** 2, 0) / samples) + 1e-8;
 
     // 标准化处理
     const processed = new Float32Array(wav.length);
@@ -191,85 +193,60 @@ async function applyModel() {
         // 使用新的填充逻辑
         const chunkTensor = padChunk(rawChunk, chunkStart, segmentLength);
         // 调用runModel处理分块
-        // const chunkTensor = []
-        // const segment = 5
-        // const samplerate = 44100;
         const chunkOut = await runModel(chunkTensor, segment, samplerate);
-        // await saveTensorToIndexedDB(chunkOut, 'chunkOut')
-        // const chunkOut = await loadTensorFromIndexedDB('chunkOut')
+        debugger
         // 应用权重合并结果
         const chunkArray = chunkOut.dataSync()
         const effectiveWeight = weight.slice(0, chunkLength);
-        for (let s = 0; s < lenModelSources; s++) {
-            for (let c = 0; c < channels; c++) {
-                for (let i = 0; i < chunkLength; i++) {
-                    const outIdx = ((s * channels + c) * length) + chunkStart + i;
-                    const inIdx = (s * channels + c) * chunkLength + i;
-                    output[outIdx] += chunkArray[inIdx] * effectiveWeight[i];
-                    sumWeight[chunkStart + i] += effectiveWeight[i];
+        for (let i = 0; i < chunkLength; i++) {
+            sumWeight[chunkStart + i] += effectiveWeight[i];
+        }
+        for (let b = 0; b < batch; b++) {
+            for (let s = 0; s < lenModelSources; s++) {
+                for (let c = 0; c < channels; c++) {
+                    for (let i = 0; i < chunkLength; i++) {
+                        // 计算4维张量的索引 [batch, source, channel, sample]
+                        const outIdx = (
+                            (b * lenModelSources * channels * length) +
+                            (s * channels * length) +
+                            (c * length) +
+                            chunkStart + i
+                        );
+                        
+                        // 计算输入块的索引 [batch, source, channel, sample]
+                        const inIdx = (
+                            (b * lenModelSources * channels * chunkLength) +
+                            (s * channels * chunkLength) +
+                            (c * chunkLength) +
+                            i
+                        );
+                        
+                        output[outIdx] += chunkArray[inIdx] * effectiveWeight[i];
+                    }
                 }
             }
         }
     }
     
-    // 归一化处理
-    for (let s = 0; s < lenModelSources; s++) {
-        for (let c = 0; c < channels; c++) {
-            for (let i = 0; i < length; i++) {
-                const idx = ((s * channels + c) * length) + i;
-                output[idx] /= sumWeight[i];
+    // 归一化处理 - 修改索引计算
+    for (let b = 0; b < batch; b++) {
+        for (let s = 0; s < lenModelSources; s++) {
+            for (let c = 0; c < channels; c++) {
+                for (let i = 0; i < length; i++) {
+                    const idx = (
+                        (b * lenModelSources * channels * length) +
+                        (s * channels * length) +
+                        (c * length) +
+                        i
+                    );
+                    output[idx] /= sumWeight[i];
+                }
             }
         }
     }
-    const resBlobs = []
-    for(let i=0;i<4;i++) {
-        let audioBuffer = createAudioBufferFromSource(i, output)
-        let audioBlob = audioBufferToWav(audioBuffer)
-        resBlobs.push(audioBlob)
-    }
+    const outputTensor = await loadTensorFromIndexedDB('output')
+    const resBlobs = postProcess(inputTensor, outputTensor.dataSync(), refMean, refStd)
     return resBlobs
-}
-
-function audioBufferToWav(audioBuffer, mimeType = 'audio/wav') {
-    const numOfChan = audioBuffer.numberOfChannels;
-    const length = audioBuffer.length * numOfChan * 2; // 16-bit PCM
-    const buffer = new ArrayBuffer(44 + length);
-    const view = new DataView(buffer);
-    const sampleRate = 44100
-    let offset = 0;
-
-    function writeString(str) {
-        for (let i = 0; i < str.length; i++) {
-            view.setUint8(offset++, str.charCodeAt(i));
-        }
-    }
-
-    // RIFF identifier
-    writeString('RIFF');
-    view.setUint32(offset, 36 + length, true); offset += 4;
-    writeString('WAVE');
-    writeString('fmt ');
-    view.setUint32(offset, 16, true); offset += 4;
-    view.setUint16(offset, 1, true); offset += 2; // PCM format
-    view.setUint16(offset, numOfChan, true); offset += 2;
-    view.setUint32(offset, sampleRate, true); offset += 4;
-    view.setUint32(offset, sampleRate * numOfChan * 2, true); offset += 4;
-    view.setUint16(offset, numOfChan * 2, true); offset += 2;
-    view.setUint16(offset, 16, true); offset += 2;
-
-    writeString('data');
-    view.setUint32(offset, length, true); offset += 4;
-
-    // Write interleaved PCM data
-    for (let i = 0; i < audioBuffer.length; i++) {
-        for (let ch = 0; ch < numOfChan; ch++) {
-            const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(ch)[i]));
-            view.setInt16(offset, sample * 0x7FFF, true);
-            offset += 2;
-        }
-    }
-
-    return new Blob([view], { type: mimeType });
 }
 
 function createAudioBufferFromSource(sourceIndex, output) {
@@ -380,7 +357,6 @@ async function runModel(mixTensor, segment, samplerate) {
     // 填充音频到有效长度
     const paddedMix = padTensor(mixTensor, validLength);
     // 生成频谱特征
-    debugger
     const z = computeSpectrogram(paddedMix);
     const mag = demucsMagnitude(z);
     const { normalizedInput1, normalizedInput2, meanMag, stdMag } = normalizeInputs(
@@ -608,10 +584,9 @@ const spectro = (audioData, nfft = 4096, hl = 1024) => {
         const paddedLength = padded.shape[1];
         
         const numFrames = Math.floor((paddedLength - nfft) / hl) + 1;
-        
         const hannWindow = tf.signal.hannWindow(nfft);
         const winNorm = tf.sqrt(tf.sum(tf.square(hannWindow)));
-        const normFactor = 1 / winNorm.dataSync()[0];
+        const normFactor = 1 / Math.sqrt(nfft)
         
         const windowedData = [];
         // 逐帧处理，避免创建大张量
@@ -1172,18 +1147,13 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         // 重新组合为复数张量（在原始后端执行）
         const padded = tf.complex(paddedReal, paddedImag);
         // 执行逆STFT
-        const x = istftForDemucs2(padded, hl, le, nfft);
+        const x = istft(padded, nfft, hl);
         // 裁剪信号
         const start = pad;
         const end = start + training_length;
         
         const cropped = x.slice([0,start], [-1,end-start]);
         const x_time = cropped.reshape([B1, S1, C1, end-start]);
-        const trimmedTensor = x_time.slice(
-            [0, 0, 0, 2],  // 从第3个时间步开始
-            [-1, -1, -1, -1] // 保持其他维度不变，取剩余所有时间步
-        );
-        debugger
         // 4. 计算均值和标准差
         const reductionIndices = [1, 2];
         const padded_t = tf.tensor(padded_m.cpuData, padded_m.dims, 'float32');
@@ -1195,9 +1165,10 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         // 6. 反标准化
         const expanded_stdt = stdt.expandDims(1);
         const expanded_meant = meant.expandDims(1);
+        
         processed_xt = processed_xt.mul(expanded_stdt).add(expanded_meant);
         // 7. 合并结果
-        return processed_xt.add(trimmedTensor);
+        return processed_xt.add(x_time);
     });
 }
 
@@ -1257,102 +1228,279 @@ function istftForDemucs(stft, hop_length, length, n_fft = 4096) {
         return result;
     });
 }
-
-function istftForDemucs2(stft, hop_length, length, n_fft) {
-    // 获取输入张量的形状
-    const [batchSize, numFreqs, numFrames] = stft.shape;
-    
-    // 验证参数
-    if (n_fft !== 2 * (numFreqs - 1)) {
-        throw new Error(`n_fft (${n_fft}) 与频率维度不匹配 (${numFreqs})`);
-    }
-
-    // 计算STFT阶段使用的填充量
-    const padStart = Math.floor((n_fft - hop_length) / 2);
-    const padEnd = Math.floor((n_fft - hop_length + 1) / 2);
-    const paddedLength = length + padStart + padEnd;
-
-    // 创建汉宁窗
-    const hannWindow = tf.signal.hannWindow(n_fft);
-    const winData = hannWindow.dataSync();
-    
-    // 缩放因子
-    const fftScale = 1 / n_fft;
-    const winPower = tf.sum(tf.square(hannWindow)).dataSync()[0];
-    const overlapCorrection = winPower * n_fft / (hop_length * numFrames);
-    const winNorm = 1 / Math.sqrt(overlapCorrection);
-
-    // 准备输出缓冲区 (包含填充区域)
-    const outputSignal = new Float32Array(batchSize * paddedLength);
-    const outputWeight = new Float32Array(batchSize * paddedLength);
-
-    // 获取STFT的实部和虚部数据
-    const stftReal = tf.real(stft).dataSync();
-    const stftImag = tf.imag(stft).dataSync();
-
-    // 遍历每个批次
-    for (let b = 0; b < batchSize; b++) {
-        // 遍历每一帧
-        for (let t = 0; t < numFrames; t++) {
-            // 1. 准备当前帧的频谱
-            const spectrum = [];
-            for (let f = 0; f < numFreqs; f++) {
-                const idx = b * numFreqs * numFrames + f * numFrames + t;
-                spectrum.push([stftReal[idx], stftImag[idx]]);
+function istft(input, n_fft, hop_length, win_length, window, center = true, normalized = true, length = null) {
+    return tf.tidy(() => {
+        // 1. 处理输入张量形状
+        const inputShape = input.shape;
+        const otherDims = inputShape.slice(0, -2);
+        const freqs = inputShape[inputShape.length - 2];
+        const frames = inputShape[inputShape.length - 1];
+        
+        const totalBatch = otherDims.reduce((acc, dim) => acc * dim, 1);
+        const reshaped = input.reshape([totalBatch, freqs, frames]);
+        
+        // 2. 计算实际FFT大小（如果未提供）
+        if (!n_fft) {
+            n_fft = 2 * (freqs - 1);
+        }
+        
+        // 3. 设置默认参数
+        hop_length = hop_length || Math.floor(n_fft / 4);
+        win_length = win_length || n_fft;
+        
+        // 4. 创建窗函数（汉宁窗）
+        let winTensor;
+        if (window) {
+            winTensor = window;
+        } else {
+            winTensor = tf.signal.hannWindow(win_length);
+            // 如果窗长度小于FFT大小，进行零填充
+            if (win_length < n_fft) {
+                const padStart = Math.floor((n_fft - win_length) / 2);
+                const padEnd = n_fft - win_length - padStart;
+                winTensor = tf.pad(winTensor, [[padStart, padEnd]]);
             }
-            
-            // 2. 重建完整频谱
-            const fullSpectrum = new Array(n_fft);
-            for (let k = 0; k < numFreqs; k++) {
-                fullSpectrum[k] = spectrum[k];
-            }
-            for (let k = 1; k < numFreqs - 1; k++) {
-                const [real, imag] = spectrum[k];
-                fullSpectrum[n_fft - k] = [real, -imag];
-            }
-            
-            // 3. 计算IFFT
-            const frameComplex = ifft(fullSpectrum);
-            
-            // 4. 提取实部并加窗
-            const frameReal = frameComplex.map((val, idx) => 
-                val[0] * winData[idx] * winNorm * fftScale
-            );
-            
-            // 5. 重叠-相加重建
-            const start = t * hop_length;
-            for (let i = 0; i < n_fft; i++) {
-                const pos = start + i;
-                if (pos >= paddedLength) continue;
+        }
+        const winData = winTensor.dataSync();
+        const winNorm = tf.sum(tf.square(winTensor)).sqrt().dataSync()[0];
+        
+        // 5. 计算填充参数
+        const padStart = center ? Math.floor(n_fft / 2) : 0;
+        const padEnd = center ? Math.ceil(n_fft / 2) : 0;
+        const outputLength = (frames - 1) * hop_length + n_fft;
+        
+        // 6. 初始化输出缓冲区和权重
+        const outputData = new Float32Array(totalBatch * outputLength).fill(0);
+        const weightData = new Float32Array(totalBatch * outputLength).fill(0);
+        
+        // 7. 处理复数输入数据
+        const complexData = reshaped.dataSync();
+        const batchSize = totalBatch;
+        
+        // 8. 处理每个批次
+        for (let b = 0; b < batchSize; b++) {
+            // 9. 处理每一帧
+            for (let t = 0; t < frames; t++) {
+                // 10. 构建单边谱
+                const frameSpectrum = [];
+                for (let f = 0; f < freqs; f++) {
+                    const index = (b * freqs * frames + f * frames + t) * 2;
+                    const real = complexData[index];
+                    const imag = complexData[index + 1];
+                    frameSpectrum.push([real, imag]);
+                }
                 
-                const idx = b * paddedLength + pos;
-                outputSignal[idx] += frameReal[i];
-                outputWeight[idx] += winData[i] * winData[i];
+                // 11. 重建完整频谱（双边谱）
+                const fullSpectrum = new Array(n_fft).fill([0, 0]);
+                
+                // 正频率部分
+                for (let f = 0; f < freqs; f++) {
+                    fullSpectrum[f] = frameSpectrum[f];
+                }
+                
+                // 负频率部分（共轭对称）
+                for (let f = 1; f < freqs - 1; f++) {
+                    fullSpectrum[n_fft - f] = [
+                        frameSpectrum[f][0], 
+                        -frameSpectrum[f][1]  // 共轭
+                    ];
+                }
+                
+                // 12. 执行IFFT
+                const frameSignal = ifft(fullSpectrum);
+                
+                // 13. 归一化处理
+                const normFactor = normalized ? Math.sqrt(n_fft) : n_fft;
+                const normalizedSignal = frameSignal.map(([real, imag]) => [
+                    real * normFactor,
+                    imag * normFactor
+                ]);
+                
+                // 14. 加窗处理
+                const windowedSignal = normalizedSignal.map(([real, imag], i) => [
+                    real * winData[i],
+                    imag * winData[i]
+                ]);
+                
+                // 15. 计算当前帧的起始位置
+                const start = t * hop_length;
+                
+                // 16. 重叠相加
+                for (let i = 0; i < n_fft; i++) {
+                    const pos = b * outputLength + start + i;
+                    const winSq = winData[i] * winData[i];
+                    
+                    outputData[pos] += windowedSignal[i][0];  // 使用实部
+                    weightData[pos] += winSq;
+                }
             }
         }
-    }
-
-    // 归一化处理
-    for (let i = 0; i < outputSignal.length; i++) {
-        if (outputWeight[i] > 1e-10) {
-            outputSignal[i] /= outputWeight[i];
+        
+        // 17. 归一化输出信号
+        for (let i = 0; i < outputData.length; i++) {
+            if (weightData[i] > 1e-10) {  // 避免除以零
+                outputData[i] /= weightData[i];
+            }
         }
-    }
-
-    // 去除填充区域
-    const unpaddedLength = paddedLength - padStart - padEnd;
-    const unpaddedSignal = new Float32Array(batchSize * unpaddedLength);
-    
-    for (let b = 0; b < batchSize; b++) {
-        for (let i = 0; i < unpaddedLength; i++) {
-            const srcIndex = b * paddedLength + padStart + i;
-            unpaddedSignal[b * unpaddedLength + i] = outputSignal[srcIndex];
+        // 18. 创建输出张量
+        let outputTensor = tf.tensor(outputData, [totalBatch, outputLength]);
+        
+        // 19. 移除填充部分
+        if (center) {
+            const start = padStart;
+            const end = outputLength - padEnd;
+            outputTensor = outputTensor.slice([0, start], [-1, end - start]);
         }
-    }
-
-    return tf.tensor2d(unpaddedSignal, [batchSize, unpaddedLength]);
+        
+        // 20. 处理指定长度
+        if (length !== null) {
+            outputTensor = outputTensor.slice([0, 0], [-1, length]);
+        }
+        
+        // 21. 恢复原始形状
+        const finalShape = [...otherDims, outputTensor.shape[1]];
+        return outputTensor.reshape(finalShape);
+    });
 }
 
+function postProcess(wav, out, ref_mean, ref_std, target_sr = 44100) {
+    // 1. 恢复原始音频范围
+    // 分离音轨恢复
+    const outArray = new Float32Array(out.length);
+    for (let i = 0; i < out.length; i++) {
+        outArray[i] = out[i] * ref_std + ref_mean;
+    }
+    
+    // 原始音频恢复（如果需要）
+    const wavArray = new Float32Array(wav.length);
+    for (let i = 0; i < wav.length; i++) {
+        wavArray[i] = wav[i] * ref_std + ref_mean;
+    }
+    // 2. 分离各音轨并归一化
+    const sources = ['drums', 'bass', 'other', 'vocals'];
+    const result = {};
+    
+    // 根据张量形状解析输出
+    // 假设out的形状为 [batch, numSources, channels, length]
+    const batch = 1; // 通常为1
+    const numSources = 4;
+    const channels = 2; // 立体声
+    const length = wav.size / channels;
+    
+    for (let s = 0; s < numSources; s++) {
+        const sourceData = new Float32Array(channels * length);
+        
+        // 找到当前音轨的最大绝对值（用于归一化）
+        let maxVal = 0;
+        for (let c = 0; c < channels; c++) {
+            for (let i = 0; i < length; i++) {
+                const idx = ((s * channels + c) * length) + i;
+                const val = Math.abs(outArray[idx]);
+                if (val > maxVal) maxVal = val;
+            }
+        }
+        
+        // 归一化因子（至少为1）
+        const normFactor = Math.max(1.01 * maxVal, 1);
+        
+        // 创建交错排列的音频数据
+        for (let i = 0; i < length; i++) {
+            for (let c = 0; c < channels; c++) {
+                const srcIdx = ((s * channels + c) * length) + i;
+                const dstIdx = i * channels + c;
+                sourceData[dstIdx] = outArray[srcIdx] / normFactor;
+            }
+        }
+        
+        // 创建AudioBuffer
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)({
+            sampleRate: target_sr
+        });
+        const audioBuffer = audioContext.createBuffer(channels, length, target_sr);
+        
+        // 复制数据到AudioBuffer
+        for (let channel = 0; channel < channels; channel++) {
+            const channelData = audioBuffer.getChannelData(channel);
+            for (let i = 0; i < length; i++) {
+                channelData[i] = sourceData[i * channels + channel];
+            }
+        }
+        
+        // 转换为WAV Blob
+        const wavBlob = audioBufferToWav(audioBuffer);
+        result[sources[s]] = wavBlob;
+    }
+    return result;
+}
+
+// 辅助函数：将AudioBuffer转换为WAV Blob
+function audioBufferToWav(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const length = buffer.length;
+    const bytesPerSample = 2; // 16-bit
+    const blockAlign = numChannels * bytesPerSample;
+    
+    // 创建WAV头部
+    const header = new ArrayBuffer(44);
+    const view = new DataView(header);
+    
+    // RIFF标识
+    writeString(view, 0, 'RIFF');
+    // 文件长度 (data size + 36)
+    view.setUint32(4, 36 + length * blockAlign, true);
+    // WAVE标识
+    writeString(view, 8, 'WAVE');
+    // fmt子块
+    writeString(view, 12, 'fmt ');
+    // fmt块长度
+    view.setUint32(16, 16, true);
+    // 格式类型 (1 = PCM)
+    view.setUint16(20, 1, true);
+    // 声道数
+    view.setUint16(22, numChannels, true);
+    // 采样率
+    view.setUint32(24, sampleRate, true);
+    // 字节率 (sampleRate * blockAlign)
+    view.setUint32(28, sampleRate * blockAlign, true);
+    // 块对齐 (numChannels * bytesPerSample)
+    view.setUint16(32, blockAlign, true);
+    // 位深度
+    view.setUint16(34, bytesPerSample * 8, true);
+    // data标识
+    writeString(view, 36, 'data');
+    // 数据长度 (numSamples * blockAlign)
+    view.setUint32(40, length * blockAlign, true);
+    
+    // 合并头部和PCM数据
+    const data = new Float32Array(length * numChannels);
+    for (let channel = 0; channel < numChannels; channel++) {
+        const channelData = buffer.getChannelData(channel);
+        for (let i = 0; i < length; i++) {
+            data[i * numChannels + channel] = channelData[i];
+        }
+    }
+    
+    const pcm16 = new Int16Array(data.length);
+    for (let i = 0; i < data.length; i++) {
+        const s = Math.max(-1, Math.min(1, data[i]));
+        pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    
+    const wav = new Blob(
+        [view, pcm16], 
+        { type: 'audio/wav' }
+    );
+    
+    return wav;
+}
+
+// 辅助函数：向DataView写入字符串
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
 export default {
     loadONNXModel,
     loadAudio,
