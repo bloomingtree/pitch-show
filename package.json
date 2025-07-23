@@ -15,7 +15,7 @@
     "axios": "^1.10.0",
     "dsp.js": "^1.0.1",
     "fflate": "^0.8.2",
-    "fft-js": "^0.0.12",
+    "fft.js": "^4.0.4",
     "notivue": "^2.4.5",
     "onnxruntime-web": "^1.22.0",
     "pyodide": "^0.28.0",

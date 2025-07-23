@@ -2,7 +2,7 @@
 import { InferenceSession, Tensor } from 'onnxruntime-web';
 import * as ort from 'onnxruntime-web';
 import * as tf from '@tensorflow/tfjs';
-import { fft, ifft } from 'fft-js'
+import { default as FFT } from 'fft.js';
 import {saveTensorArrayToIndexedDB, loadTensorArrayFromIndexedDB, 
 } from "./tensorUtils.js"
 
@@ -31,11 +31,11 @@ async function loadONNXModel(modelPath) {
         
         // 创建推理会话
         const session = await InferenceSession.create(modelBuffer, {
-            executionProviders: ['wasm'],
+            executionProviders: ['webgpu', 'webgl', 'wasm'],
             graphOptimizationLevel: 'all',
             executionMode: 'parallel',
             wasm: {
-                worker: false // 禁用worker模式避免CORS问题
+                worker: true
             }
         });
         
@@ -153,7 +153,6 @@ async function applyModel() {
     const stride = Math.floor((1 - overlap) * segmentLength);
     
     // 初始化输出缓冲
-    const output = new Float32Array(batch * lenModelSources * channels * length).fill(0);
     let sumWeight = tf.zeros([length]);
 
     // 创建权重窗口
@@ -186,6 +185,7 @@ async function applyModel() {
         // 调用runModel处理分块
         const chunkOut = await runModel(chunkTensor, segment, samplerate, chunkLength);
         futures.push({'future': chunkOut, 'offset': offset})
+        console.log('进度：', chunkEnd / length*100, '%')
     }
     let out = tf.zeros([batch, lenModelSources, channels, length]);
     // 处理所有分块结果
@@ -295,31 +295,6 @@ async function applyModel() {
     return resBlobs
 }
 
-function createAudioBufferFromSource(sourceIndex, output) {
-    const sampleRate = 44100;
-    const duration = 7; // seconds
-    const channels = 2; // stereo
-    const samplesPerChannel = sampleRate * duration; // 308700
-    const samplesPerSource = samplesPerChannel * channels; // 617400
-    const totalSources = 4;
-    const startIdx = sourceIndex * samplesPerSource;
-    const audioBuffer = new AudioBuffer({
-        length: samplesPerChannel,
-        numberOfChannels: channels,
-        sampleRate: sampleRate
-    });
-
-    for (let ch = 0; ch < channels; ch++) {
-        const channelData = audioBuffer.getChannelData(ch);
-        for (let i = 0; i < samplesPerChannel; i++) {
-            const idx = startIdx + i * channels + ch;
-            channelData[i] = output[idx];
-        }
-    }
-
-    return audioBuffer;
-}
-
 function normalizeInputs(paddedMix, mag) {
     return tf.tidy(() => {
         // 标准化paddedMix (input1)
@@ -368,77 +343,101 @@ async function processModelOutput(x, xt, mean_mag, std_mag, input2Shape) {
     });
 }
 
-// 运行ONNX模型的函数
+// 修改后的运行ONNX模型函数
 async function runONNXModel(session, normalizedInput1, normalizedInput2) {
-    // 将TensorFlow.js张量转换为ONNX Runtime可用的张量
-    const input1Data = normalizedInput1.dataSync();
-    const input2Data = normalizedInput2.dataSync();
-    
-    // 创建ONNX输入张量
-    const input1Tensor = new ort.Tensor('float32', input1Data, normalizedInput1.shape);
-    const input2Tensor = new ort.Tensor('float32', input2Data, normalizedInput2.shape);
-    
-    // 准备输入
-    const feeds = {
-        mix: input1Tensor,
-        mag: input2Tensor
-    };
-    // 运行模型
-    const results = await session.run(feeds);
-    // 提取输出
-    let x = results.x;  // 假设输出名称为'x'
-    let xt = results.xt; // 假设输出名称为'xt'
-    
-    // 返回结果
-    return { x, xt };
+    try {
+        // 使用异步数据获取避免阻塞GPU
+        const [input1Data, input2Data] = await Promise.all([
+            normalizedInput1.data(),
+            normalizedInput2.data()
+        ]);
+        
+        // 创建ONNX输入张量
+        const input1Tensor = new ort.Tensor('float32', input1Data, normalizedInput1.shape);
+        const input2Tensor = new ort.Tensor('float32', input2Data, normalizedInput2.shape);
+        
+        // 准备输入
+        const feeds = {
+            mix: input1Tensor,
+            mag: input2Tensor
+        };
+        
+        // 运行模型
+        const results = await session.run(feeds);
+        
+        // 返回结果并标记需要释放
+        return {
+            x: results.x,
+            xt: results.xt,
+            toDispose: [input1Tensor, input2Tensor]
+        };
+    } finally {
+        // 确保释放TF资源，即使出错
+        tf.dispose([normalizedInput1, normalizedInput2]);
+    }
 }
 
 async function runModel(mixTensor, segment, samplerate, realLength) {
-    const length = mixTensor.dims[2]
-    console.log('length:' ,length)
-    const validLength = Math.floor(segment * samplerate);
-    const batchSize = 1;
-    const channels = 2;
+    // 创建资源释放列表
+    const toDispose = [];
     
-    // 填充音频到有效长度
-    const paddedMix = mixTensor
-    // 生成频谱特征
-    const z = computeSpectrogram(paddedMix);
-    const mag = demucsMagnitude(z);
-    const { normalizedInput1, normalizedInput2, meanMag, stdMag } = normalizeInputs(
-        convertOnnxTensorToTf(paddedMix),
-        mag
-    );
-    const results = await runONNXModel(modelSession, normalizedInput1, normalizedInput2)
-    const { x, xt, B, S } = await processModelOutput(
-        results.x, 
-        results.xt, 
-        meanMag, 
-        stdMag, 
-        normalizedInput2.shape
-    );
-    // 7. 清理资源
-    tf.dispose([normalizedInput1, normalizedInput2])
-    // await saveTensorToIndexedDB(x, 'x')
-    // await saveTensorToIndexedDB(xt, 'xt')
-    // await saveTensorToIndexedDB(convertToTFTensor(paddedMix), 'paddedMix')
-    console.log(segment)
-    console.log(samplerate)
-    console.log(B)
-    console.log(S)
-    // const B = 1; // 假设B为1，因为我们处理的是单个音频
-    // const S = 4; // 假设S为4，因为我们处理的是4个源
-    // let x = await loadTensorFromIndexedDB('x')
-    // let xt = await loadTensorFromIndexedDB('xt')
-    // const temp = await loadTensorFromIndexedDB('paddedMix')
-    // const paddedMix = await convertFromTFTensor(temp)
-    // console.log('x:', x)
-    // console.log('xt:', xt)
-    // console.log('paddedMix:', paddedMix)
-    const out = demucsPostProcess(x, xt, paddedMix, segment, samplerate, B, S);
-    return centerTrim(out, realLength)
+    try {
+        const length = mixTensor.dims[2];
+        const validLength = Math.floor(segment * samplerate);
+        
+        // 填充音频到有效长度
+        const paddedMix = mixTensor;
+        toDispose.push(paddedMix);
+        
+        // 生成频谱特征
+        const z = computeSpectrogram(paddedMix);
+        toDispose.push(z);
+        
+        const mag = demucsMagnitude(z);
+        toDispose.push(mag);
+        
+        const { normalizedInput1, normalizedInput2, meanMag, stdMag } = normalizeInputs(
+            convertOnnxTensorToTf(paddedMix),
+            mag
+        );
+        toDispose.push(normalizedInput1, normalizedInput2);
+        
+        console.time('run');
+        const results = await runONNXModel(modelSession, normalizedInput1, normalizedInput2);
+        console.timeEnd('run');
+        
+        // 添加ONNX资源到释放列表
+        if (results.toDispose) {
+            toDispose.push(...results.toDispose);
+        }
+        
+        const { x, xt, B, S } = await processModelOutput(
+            results.x, 
+            results.xt, 
+            meanMag, 
+            stdMag, 
+            normalizedInput2.shape
+        );
+        
+        // 添加输出资源到释放列表
+        toDispose.push(x, xt);
+        
+        const out = demucsPostProcess(x, xt, paddedMix, segment, samplerate, B, S);
+        toDispose.push(out);
+        
+        return centerTrim(out, realLength);
+    } finally {
+        // 确保所有资源最终被释放
+        await tf.nextFrame(); // 给GPU喘息机会
+        tf.dispose(toDispose.filter(t => t));
+        
+        // 额外内存清理
+        if (tf.memory().numTensors > 100) {
+            tf.engine().startScope();
+            tf.engine().endScope();
+        }
+    }
 }
-
 function convertOnnxTensorToTf(onnxTensor) {
     const data = onnxTensor.data;
     const dims = onnxTensor.dims;
@@ -538,40 +537,6 @@ function pad1d(x, paddings, mode = 'constant', value = 0) {
     return out;
 }
 
-function padTensor(tensor, validLength) {
-    const [B, C, T] = tensor.dims;
-    // 修正填充量计算逻辑
-    const padSize = Math.max(validLength - T, 0); // 确保不会产生负填充
-    const paddedData = new Float32Array(B * C * (T + padSize));
-    paddedData.set(tensor.data);
-    return new ort.Tensor('float32', paddedData, [B, C, T + padSize]);
-}
-
-function demucsMask(m) {
-    return tf.tidy(() => {
-        // 获取输入形状
-        const [B, S, C, Fr, T] = m.shape;
-        
-        // 确保通道数是偶数
-        if (C % 2 !== 0) {
-            throw new Error(`通道数C必须是偶数，当前为: ${C}`);
-        }
-        
-        // 步骤1: 重塑张量 [B, S, C, Fr, T] -> [B, S, C/2, 2, Fr, T]
-        const reshaped = m.reshape([B, S, C/2, 2, Fr, T]);
-        
-        // 步骤2: 维度置换 [B, S, C/2, 2, Fr, T] -> [B, S, C/2, Fr, T, 2]
-        const permuted = reshaped.transpose([0, 1, 2, 4, 5, 3]);
-        
-        // 步骤3: 提取实部和虚部
-        const real = permuted.slice([0, 0, 0, 0, 0, 0], [-1, -1, -1, -1, -1, 1]).squeeze([5]);
-        const imag = permuted.slice([0, 0, 0, 0, 0, 1], [-1, -1, -1, -1, -1, 1]).squeeze([5]);
-        
-        // 步骤4: 创建复数张量
-        return tf.complex(real, imag);
-    });
-}
-
 function processSpectro(z, le) {
     return tf.tidy(() => {
         const real = tf.real(z);
@@ -612,7 +577,6 @@ function processSpectro(z, le) {
 }
 
 const spectro = (audioData, nfft = 4096, hl = 1024) => {
-    
     const inputShape = audioData.shape;
     const otherDims = inputShape.slice(0, -1);
     const length = inputShape[inputShape.length - 1];
@@ -624,48 +588,61 @@ const spectro = (audioData, nfft = 4096, hl = 1024) => {
     const padEnd = Math.ceil(nfft / 2);
     
     return tf.tidy(() => {
-        
         const padded = tf.mirrorPad(x, [[0, 0], [padStart, padEnd]], 'reflect');
         const paddedLength = padded.shape[1];
-        
         const numFrames = Math.floor((paddedLength - nfft) / hl) + 1;
         const hannWindow = tf.signal.hannWindow(nfft);
-        const winNorm = tf.sqrt(tf.sum(tf.square(hannWindow)));
-        const normFactor = 1 / Math.sqrt(nfft)
-        
-        const windowedData = [];
-        // 逐帧处理，避免创建大张量
-        for (let b = 0; b < totalBatch; b++) {
-            const batchFrames = [];
-            for (let t = 0; t < numFrames; t++) {
-                const start = t * hl;
-                // 提取单帧并加窗
-                const frame = padded.slice([b, start], [1, nfft]);
-                const windowed = frame.mul(hannWindow.reshape([1, nfft]));
-                batchFrames.push(windowed.dataSync());
-            }
-            windowedData.push(batchFrames);
-        }
-        
+        const normFactor = 1 / Math.sqrt(nfft);
         const numFreqs = Math.floor(nfft / 2) + 1;
+        
+        // 预分配内存
         const realPart = new Float32Array(totalBatch * numFrames * numFreqs);
         const imagPart = new Float32Array(totalBatch * numFrames * numFreqs);
         
-        let bufferIndex = 0;
-        // 逐帧计算FFT
+        // 创建FFT实例（复用提高性能）
+        const fft = new FFT(nfft);
+        const fftInput = new Array(nfft);
+        const fftOutput = new Array(nfft * 2); // 输出是复数（实部+虚部）
+        
+        console.time('fft_compute');
+        
+        // 逐批次处理
         for (let b = 0; b < totalBatch; b++) {
+            // 预提取批次数据
+            const batchData = [];
             for (let t = 0; t < numFrames; t++) {
-                const frameData = windowedData[b][t];
-                const phasors = fft(frameData);
-                // 只保留正频率部分
-                for (let f = 0; f < numFreqs; f++) {
-                    const index = bufferIndex * numFreqs + f;
-                    realPart[index] = phasors[f][0] * normFactor;
-                    imagPart[index] = phasors[f][1] * normFactor;
+                const start = t * hl;
+                const frame = padded.slice([b, start], [1, nfft]);
+                const windowed = frame.mul(hannWindow.reshape([1, nfft]));
+                batchData.push(windowed.dataSync());
+            }
+            
+            // 逐帧处理
+            for (let t = 0; t < numFrames; t++) {
+                const frameData = batchData[t];
+                
+                // 准备FFT输入数据
+                for (let i = 0; i < nfft; i++) {
+                    fftInput[i] = frameData[i];
                 }
-                bufferIndex++;
+                
+                // 执行FFT计算
+                fft.realTransform(fftOutput, fftInput);
+                
+                // 提取正频率部分（前numFreqs个点）
+                const baseIndex = (b * numFrames + t) * numFreqs;
+                for (let f = 0; f < numFreqs; f++) {
+                    const real = fftOutput[2 * f];
+                    const imag = fftOutput[2 * f + 1];
+                    
+                    realPart[baseIndex + f] = real * normFactor;
+                    imagPart[baseIndex + f] = imag * normFactor;
+                }
             }
         }
+        
+        console.timeEnd('fft_compute');
+        
         // 创建复数张量 [batch, frames, freqs]
         const complexSpectrum = tf.complex(
             tf.tensor2d(realPart, [totalBatch * numFrames, numFreqs]),
@@ -692,12 +669,12 @@ const spectro = (audioData, nfft = 4096, hl = 1024) => {
             tf.tensor(transposedData.filter((_, i) => i % 2 === 0), [totalBatch, numFreqs, numFrames]),
             tf.tensor(transposedData.filter((_, i) => i % 2 === 1), [totalBatch, numFreqs, numFrames])
         );
+        
         // 恢复原始维度
         const outputShape = [...otherDims, numFreqs, numFrames];
         return transposed.reshape(outputShape);
     });
 };
-
 function computeSpectrogram(audioData) {
     const nfft = 4096
     const hop_length = Math.floor(nfft / 4);
@@ -756,217 +733,6 @@ function demucsMagnitude(z, cac = true) {
         }
     });
 }
-/**
- * Demucs 逆频谱转换 (TensorFlow.js 实现)
- * 支持PyTorch风格的复数张量输入
- * 
- * @param {tf.Tensor} z - 输入复数频谱张量 [B, S, C, F, T] (PyTorch风格)
- * @param {number} length - 期望输出长度（采样点数）
- * @param {number} nfft - FFT 窗口大小（默认4096）
- * @param {number} scale - 缩放因子（默认0）
- * @returns {tf.Tensor} 时域信号
- */
-async function demucsIspec(z, length = null, nfft = 4096, scale = 0) {
-    return tf.tidy(async () => {
-        // 1. 转换PyTorch复数张量为TensorFlow.js格式
-        //    [B, S, C, F, T] -> [B, S, C, F, T, 2]
-        const complexTensor = convertPyTorchComplexToTFJS(z);
-        
-        // 2. 重塑张量为函数期望的形状 [B, S, C, F, T, 2] -> [B*S*C, F, T, 2]
-        const batchSize = complexTensor.shape[0];
-        const sources = complexTensor.shape[1];
-        const channels = complexTensor.shape[2];
-        const freqs = complexTensor.shape[3];
-        const frames = complexTensor.shape[4];
-        
-        const reshaped = complexTensor.reshape([
-            batchSize * sources * channels, 
-            freqs, 
-            frames, 
-            2
-        ]);
-        
-        // 3. 计算跳数长度
-        const hopLength = Math.floor(nfft / 4);
-        const hl = Math.floor(hopLength / Math.pow(4, scale));
-        
-        // 4. 填充操作 (对应 F.pad(z, (0, 0, 0, 1)))
-        let padded = reshaped;
-        const padBefore = [0, 0];  // 时间维度前后不填充
-        const padAfter = [0, 1];   // 频率维度末尾填充1
-        
-        // 创建填充配置: [批次, 频率, 时间, 复数]
-        const paddings = [
-            [0, 0],     // 批次维度不填充
-            [0, 1],     // 频率维度末尾填充1
-            [0, 0],     // 时间维度不填充
-            [0, 0]      // 复数维度不填充
-        ];
-        
-        padded = tf.pad(reshaped, paddings);
-        
-        // 5. 再次填充 (对应 F.pad(z, (2, 2)))
-        const timePad = [2, 2];
-        const newPaddings = [
-            [0, 0],     // 批次维度不填充
-            [0, 0],     // 频率维度不填充
-            [2, 2],     // 时间维度前后各填充2
-            [0, 0]      // 复数维度不填充
-        ];
-        
-        padded = tf.pad(padded, newPaddings);
-        
-        // 6. 计算最终长度
-        const pad = Math.floor(hl / 2) * 3;
-        if (!length) {
-            // 如果没有提供length，则根据输入计算
-            const inputFrames = frames;
-            length = (inputFrames - 1) * hl;
-        }
-        const le = hl * Math.ceil(length / hl) + 2 * pad;
-        // 7. 执行逆短时傅里叶变换
-        let x = istft(padded, hl, le)
-        // 8. 裁剪到所需长度
-        const start = pad;
-        const end = start + length;
-        
-        // 裁剪最后一维（时间维）
-        const cropped = x.slice([0, 0, start], [-1, -1, end - start]);
-        
-        // 9. 恢复原始形状 [B*S*C, 1, L] -> [B, S, C, L]
-        const output = cropped.reshape([
-            batchSize, 
-            sources, 
-            channels, 
-            end - start
-        ]);
-        
-        return output;
-    });
-}
-
-/**
- * 将PyTorch风格的复数张量转换为TensorFlow.js格式
- * 
- * @param {tf.Tensor} tensor - PyTorch风格的复数张量 [B, S, C, F, T]
- * @returns {tf.Tensor} TF.js格式的复数张量 [B, S, C, F, T, 2]
- */
-function convertPyTorchComplexToTFJS(tensor) {
-    return tf.tidy(() => {
-        // 分离实部和虚部
-        const real = tf.real(tensor);
-        const imag = tf.imag(tensor);
-        
-        // 在最后一个维度上堆叠实部和虚部
-        return tf.stack([real, imag], -1);
-    });
-}
-
-function istftSync(paddedTensor, n_fft = 4096, hop_length = 1024) {
-    return tf.tidy(() => {
-      // 1. 分离实部和虚部（同步操作）
-      const real = paddedTensor.slice([0, 0, 0, 0], [-1, -1, -1, 1]).squeeze([3]);
-      const imag = paddedTensor.slice([0, 0, 0, 1], [-1, -1, -1, 1]).squeeze([3]);
-      const complex = tf.complex(real, imag);
-  
-      // 2. 构建完整频谱（共轭对称）
-      const firstHalf = complex.slice([0, 0, 0], [-1, 2049, -1]);
-      const rest = firstHalf.slice([0, 1, 0], [-1, 2047, -1]);
-      const conjFlip = tf.conj(rest).reverse(1);
-      const fullSpectrum = tf.concat([firstHalf, conjFlip], 1);
-  
-      // 3. 逆FFT（同步操作）
-      const permuted = fullSpectrum.transpose([0, 2, 1]); // [batch, time, n_fft]
-      const ifft = tf.spectral.ifft(permuted);
-      const realPart = tf.real(ifft); // [batch, time, n_fft]
-  
-      // 4. 窗函数（同步生成）
-      const win = tf.signal.hannWindow(n_fft);
-  
-      // 5. 初始化输出缓冲区
-      const batch = realPart.shape[0];
-      const n_frames = realPart.shape[1];
-      const length = (n_frames - 1) * hop_length + n_fft;
-      const output = tf.buffer([batch, length]);
-      const windowSum = tf.buffer([batch, length]);
-  
-      // 6. 同步重叠-相加
-      for (let t = 0; t < n_frames; t++) {
-        const start = t * hop_length;
-        const frame = realPart.slice([0, t, 0], [-1, 1, -1]).squeeze([1]);
-        const windowed = frame.mul(win);
-  
-        // 直接操作Buffer（同步写入）
-        for (let b = 0; b < batch; b++) {
-          for (let i = 0; i < n_fft; i++) {
-            const pos = start + i;
-            output.values[b * length + pos] += windowed.arraySync()[b][i];
-            windowSum.values[b * length + pos] += win.arraySync()[i] ** 2;
-          }
-        }
-      }
-  
-      // 7. 转换为Tensor并归一化
-      const outputTensor = tf.tensor(output.values, [batch, length]);
-      const windowSumTensor = tf.tensor(windowSum.values, [batch, length]);
-      return outputTensor.div(windowSumTensor.add(1e-10));
-    });
-}
-
-
-/**
- * Demucs 逆频谱转换 (TensorFlow.js 实现)
- * @param {tf.Tensor} z - 输入复数频谱张量 [..., freqs, frames]
- * @param {number} hopLength - 跳数长度
- * @param {number} length - 期望输出长度（采样点数）
- * @param {number} pad - 填充因子（默认0）
- * @returns {tf.Tensor} 时域信号
- */
-async function demucsIspectro(z, hopLength = null, length = null, pad = 0) {
-    return tf.tidy(async () => {
-        // 1. 获取输入形状
-        const shape = z.shape;
-        const otherDims = shape.slice(0, -2); // 除最后两个维度外的其他维度
-        const freqs = shape[shape.length - 2];
-        const frames = shape[shape.length - 1];
-        
-        // 2. 计算FFT长度
-        const nFft = 2 * freqs - 2;
-        
-        // 3. 重塑张量 [..., freqs, frames] -> [batch, freqs, frames]
-        const batchSize = otherDims.reduce((a, b) => a * b, 1);
-        const reshapedZ = z.reshape([batchSize, freqs, frames]);
-        
-        // 4. 计算窗口长度
-        const winLength = Math.floor(nFft / (1 + pad));
-        
-        // 5. 创建汉宁窗
-        const hannWindow = tf.signal.hannWindow(winLength);
-        
-        // 6. 执行逆STFT
-        const config = {
-            window: hannWindow,
-            hopLength: hopLength,
-            winLength: winLength,
-            fftLength: nFft,
-            center: true,
-            normalized: true
-        };
-        let x = istftSync(reshapedZ)
-        if (length !== null) {
-            const currentLength = x.shape[x.shape.length - 1];
-            if (length < currentLength) {
-                const start = Math.floor((currentLength - length) / 2);
-                x = x.slice([0, start], [-1, length]);
-            }
-        }
-        
-        // 8. 恢复原始形状 [batch, length] -> [...otherDims, length]
-        const outputShape = [...otherDims, x.shape[1]];
-        x = x.reshape(outputShape);
-        return x;
-    });
-}
 
 /**
  * 中心裁剪张量，使其最后一维与参考长度匹配
@@ -985,7 +751,6 @@ function centerTrim(tensor, reference) {
     } else {
         throw new Error('reference 必须是 tf.Tensor 或数字');
     }
-    debugger
     // 2. 计算需要裁剪的长度
     const tensorSize = tensor.shape[tensor.shape.length - 1];
     const delta = tensorSize - refSize;
@@ -1013,141 +778,6 @@ function centerTrim(tensor, reference) {
     size[rank - 1] = end - start; // 最后一维的新长度
     return tf.tidy(() => {
         return tensor.slice(begin, size);
-    });
-}
-
-/**
- * 实现与PyTorch istft兼容的逆短时傅里叶变换
- * @param {Array} z - 复数频谱 [frames, freq_bins, time_frames]
- * @param {Object} params - 参数对象
- * @param {number} params.n_fft - FFT点数 (默认4096)
- * @param {number} params.hop_length - 跳数长度 (默认1024)
- * @param {number} params.win_length - 窗口长度 (默认n_fft)
- * @param {Array} params.window - 窗口函数 (默认汉宁窗)
- * @param {boolean} params.normalized - 是否归一化 (默认true)
- * @param {number} params.length - 输出长度 (可选)
- * @param {boolean} params.center - 是否中心化 (默认true)
- * @returns {Array} 时域信号
- */
-function inverseSTFT(z, params = {}) {
-    // 设置默认参数
-    const {
-        n_fft = 4096,
-        hop_length = 1024,
-        win_length = n_fft,
-        window = null,
-        normalized = true,
-        length = null,
-        center = true
-    } = params;
-
-    // 1. 准备窗口函数
-    const hannWindow = window || createHannWindow(win_length);
-    
-    // 2. 计算频率bins (对称的FFT结果)
-    const freq_bins = n_fft / 2 + 1;
-    
-    // 3. 检查输入形状
-    if (z.length !== freq_bins) {
-        throw new Error(`输入频率bins数量不匹配，预期${freq_bins}，得到${z.length}`);
-    }
-
-    // 4. 计算输出长度
-    const expected_length = length || (z[0].length - 1) * hop_length;
-    
-    // 5. 初始化输出信号
-    const output_length = center ? expected_length + n_fft : expected_length;
-    const signal = new Array(output_length).fill(0);
-    const window_sum = new Array(output_length).fill(0);
-
-    // 6. 处理每一帧
-    for (let t = 0; t < z[0].length; t++) {
-        // 6.1 获取当前帧的频谱
-        const frame_fft = [];
-        for (let f = 0; f < freq_bins; f++) {
-            frame_fft.push(z[f][t]);
-        }
-        
-        // 6.2 补全对称部分 (Hermitian对称)
-        const full_fft = completeHermitian(frame_fft, n_fft);
-        
-        // 6.3 执行IFFT
-        const frame_signal = fftjs.ifft(full_fft);
-        
-        // 6.4 应用窗口函数
-        const windowed_frame = applyWindow(frame_signal, hannWindow);
-        
-        // 6.5 计算帧的位置
-        const position = t * hop_length;
-        
-        // 6.6 重叠相加
-        for (let i = 0; i < windowed_frame.length; i++) {
-            const pos = position + i;
-            if (pos < output_length) {
-                signal[pos] += windowed_frame[i][0]; // 实部
-                window_sum[pos] += hannWindow[i];
-            }
-        }
-    }
-
-    // 7. 归一化处理
-    let final_signal;
-    if (normalized) {
-        final_signal = signal.map((val, i) => val / window_sum[i]);
-    } else {
-        final_signal = signal.map((val, i) => val / (n_fft / hop_length));
-    }
-
-    // 8. 中心化处理
-    if (center) {
-        const pad_size = Math.floor(n_fft / 2);
-        return final_signal.slice(pad_size, pad_size + expected_length);
-    }
-
-    return final_signal.slice(0, expected_length);
-}
-
-/**
- * 创建汉宁窗
- * @param {number} length - 窗口长度
- * @returns {Array} 汉宁窗数组
- */
-function createHannWindow(length) {
-    const window = [];
-    for (let i = 0; i < length; i++) {
-        window.push(0.5 * (1 - Math.cos(2 * Math.PI * i / (length - 1))));
-    }
-    return window;
-}
-
-/**
- * 补全Hermitian对称部分
- * @param {Array} frame_fft - 前半部分FFT结果
- * @param {number} n_fft - FFT点数
- * @returns {Array} 完整的FFT结果
- */
-function completeHermitian(frame_fft, n_fft) {
-    const full_fft = [...frame_fft];
-    
-    // 补全对称部分 (忽略直流分量和Nyquist频率)
-    for (let k = frame_fft.length - 2; k > 0; k--) {
-        const [re, im] = frame_fft[k];
-        full_fft.push([re, -im]); // 共轭对称
-    }
-    
-    return full_fft;
-}
-
-/**
- * 应用窗口函数
- * @param {Array} frame - 帧信号
- * @param {Array} window - 窗口函数
- * @returns {Array} 加窗后的信号
- */
-function applyWindow(frame, window) {
-    return frame.map((val, i) => {
-        const win_val = i < window.length ? window[i] : 1;
-        return [val[0] * win_val, val[1] * win_val];
     });
 }
 
@@ -1192,7 +822,9 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         // 重新组合为复数张量（在原始后端执行）
         const padded = tf.complex(paddedReal, paddedImag);
         // 执行逆STFT
+        console.time('istft_compute')
         const x = istft(padded, nfft, hl);
+        console.timeEnd('istft_compute')
         // 裁剪信号
         const start = pad;
         const end = start + training_length;
@@ -1200,6 +832,7 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         const cropped = x.slice([0,start], [-1,end-start]);
         const x_time = cropped.reshape([B1, S1, C1, end-start]);
         // 4. 计算均值和标准差
+        console.time('average_compute')
         const reductionIndices = [1, 2];
         const padded_t = tf.tensor(padded_m.cpuData, padded_m.dims, 'float32');
         const meant = padded_t.mean(reductionIndices, true);
@@ -1212,65 +845,9 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         const expanded_meant = meant.expandDims(1);
         
         processed_xt = processed_xt.mul(expanded_stdt).add(expanded_meant);
+        console.timeEnd('average_compute')
         // 7. 合并结果
         return processed_xt.add(x_time);
-    });
-}
-
-function istftForDemucs(stft, hop_length, length, n_fft = 4096) {
-    return tf.tidy(() => {
-        const [batch, freqs, frames] = stft.shape;
-        const outputLength = (frames - 1) * hop_length + n_fft;
-        // 分离实部和虚部
-        const real = tf.real(stft);
-        const imag = tf.imag(stft);
-        
-        // 构建完整频谱（拆分实虚部分别处理）
-        const firstReal = real.slice([0,0,0], [-1,2049,-1]);
-        const firstImag = imag.slice([0,0,0], [-1,2049,-1]);
-        const firstHalf = tf.complex(firstReal, firstImag);
-
-        // 分离rest的实部和虚部后反转
-        const restReal = real.slice([0,1,0], [-1,2047,-1]).reverse(1);
-        const restImag = imag.slice([0,1,0], [-1,2047,-1]).reverse(1);
-        const conjFlip = tf.complex(restReal, tf.mul(restImag, -1));
-
-        const fullSpectrum = tf.concat([firstHalf, conjFlip], 1);
-        // 执行逆FFT
-        const permuted = fullSpectrum.transpose([0,2,1]);
-        const ifft = tf.spectral.ifft(permuted);
-        const realPart = tf.real(ifft);
-        
-        // 应用窗函数和重叠相加
-        const win = tf.signal.hannWindow(n_fft);
-        const outputBuf = tf.buffer([batch, outputLength]);
-        const windowSumBuf = tf.buffer([batch, outputLength]);
-        
-        const winData = win.arraySync();
-        const realData = realPart.reshape([batch, frames, n_fft]).arraySync();
-        for (let b = 0; b < batch; b++) {
-            for (let t = 0; t < frames; t++) {
-                const start = t * hop_length;
-                for (let i = 0; i < n_fft; i++) {
-                    const idx = b * outputLength + start + i;
-                    const value = realData[b][t][i] * winData[i];
-                    
-                    outputBuf.values[idx] += value;
-                    windowSumBuf.values[idx] += winData[i] * winData[i];
-                }
-            }
-        }
-        
-        // 归一化并裁剪
-        const output = outputBuf.toTensor();
-        const windowSum = windowSumBuf.toTensor();
-        const result = output.div(windowSum.add(1e-10));
-        
-        if (length < outputLength) {
-            const start = Math.floor((outputLength - length) / 2);
-            return result.slice([0, start], [batch, length]);
-        }
-        return result;
     });
 }
 function istft(input, n_fft, hop_length, win_length, window, center = true, normalized = true, length = null) {
@@ -1322,71 +899,78 @@ function istft(input, n_fft, hop_length, win_length, window, center = true, norm
         const complexData = reshaped.dataSync();
         const batchSize = totalBatch;
         
-        // 8. 处理每个批次
+        // 8. 创建FFT实例（重用实例提高性能）
+        const fft = new FFT(n_fft);
+        const ifftInput = new Array(n_fft * 2);
+        const ifftOutput = new Array(n_fft * 2);
+        console.time('istft')
+        // 9. 处理每个批次
         for (let b = 0; b < batchSize; b++) {
-            // 9. 处理每一帧
+            // 10. 处理每一帧
             for (let t = 0; t < frames; t++) {
-                // 10. 构建单边谱
-                const frameSpectrum = [];
+                // 11. 构建单边谱
+                const frameSpectrum = new Array(freqs);
                 for (let f = 0; f < freqs; f++) {
                     const index = (b * freqs * frames + f * frames + t) * 2;
-                    const real = complexData[index];
-                    const imag = complexData[index + 1];
-                    frameSpectrum.push([real, imag]);
-                }
-                
-                // 11. 重建完整频谱（双边谱）
-                const fullSpectrum = new Array(n_fft).fill([0, 0]);
-                
-                // 正频率部分
-                for (let f = 0; f < freqs; f++) {
-                    fullSpectrum[f] = frameSpectrum[f];
-                }
-                
-                // 负频率部分（共轭对称）
-                for (let f = 1; f < freqs - 1; f++) {
-                    fullSpectrum[n_fft - f] = [
-                        frameSpectrum[f][0], 
-                        -frameSpectrum[f][1]  // 共轭
+                    frameSpectrum[f] = [
+                        complexData[index],
+                        complexData[index + 1]
                     ];
                 }
                 
-                // 12. 执行IFFT
-                const frameSignal = ifft(fullSpectrum);
+                // 12. 重建完整频谱（双边谱）
+                // 直接使用预分配的 ifftInput 数组
+                // 正频率部分
+                for (let f = 0; f < freqs; f++) {
+                    ifftInput[f * 2] = frameSpectrum[f][0];     // 实部
+                    ifftInput[f * 2 + 1] = frameSpectrum[f][1]; // 虚部
+                }
                 
-                // 13. 归一化处理
+                // 负频率部分（共轭对称）
+                // 注意：f=0 和 f=nyquist 频率没有对称部分
+                for (let f = 1; f < freqs - 1; f++) {
+                    const negIndex = (n_fft - f) * 2;
+                    ifftInput[negIndex] = frameSpectrum[f][0];      // 实部不变
+                    ifftInput[negIndex + 1] = -frameSpectrum[f][1]; // 虚部取负（共轭）
+                }
+                
+                // 填充中间部分为零（如果有）
+                if (n_fft > freqs * 2 - 2) {
+                    for (let f = freqs; f < n_fft - freqs + 2; f++) {
+                        ifftInput[f * 2] = 0;
+                        ifftInput[f * 2 + 1] = 0;
+                    }
+                }
+                
+                // 13. 执行IFFT
+                fft.inverseTransform(ifftOutput, ifftInput);
+                
+                // 14. 归一化处理
                 const normFactor = normalized ? Math.sqrt(n_fft) : n_fft;
-                const normalizedSignal = frameSignal.map(([real, imag]) => [
-                    real * normFactor,
-                    imag * normFactor
-                ]);
                 
-                // 14. 加窗处理
-                const windowedSignal = normalizedSignal.map(([real, imag], i) => [
-                    real * winData[i],
-                    imag * winData[i]
-                ]);
-                
-                // 15. 计算当前帧的起始位置
+                // 15. 加窗处理并直接累加到输出
                 const start = t * hop_length;
                 
-                // 16. 重叠相加
+                // 16. 重叠相加（同时应用归一化和加窗）
                 for (let i = 0; i < n_fft; i++) {
                     const pos = b * outputLength + start + i;
-                    const winSq = winData[i] * winData[i];
+                    const real = ifftOutput[i * 2] * normFactor;
+                    const winValue = winData[i];
+                    const winSq = winValue * winValue;
                     
-                    outputData[pos] += windowedSignal[i][0];  // 使用实部
+                    outputData[pos] += real * winValue;
                     weightData[pos] += winSq;
                 }
             }
         }
-        
+        console.timeEnd('istft')
         // 17. 归一化输出信号
         for (let i = 0; i < outputData.length; i++) {
             if (weightData[i] > 1e-10) {  // 避免除以零
                 outputData[i] /= weightData[i];
             }
         }
+        
         // 18. 创建输出张量
         let outputTensor = tf.tensor(outputData, [totalBatch, outputLength]);
         
@@ -1407,7 +991,6 @@ function istft(input, n_fft, hop_length, win_length, window, center = true, norm
         return outputTensor.reshape(finalShape);
     });
 }
-
 function postProcess(wav, out, ref_mean, ref_std, target_sr = 44100) {
     // 1. 恢复原始音频范围
     // 分离音轨恢复
