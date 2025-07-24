@@ -82,8 +82,7 @@
 
 <script>
 import { push } from 'notivue'
-import separate from '../js/separate.js'
-import separate1 from '../js/seperateOnnx.js'
+import demucsUtils from '../js/demucsUtils.js'
 export default {
   name: 'SeparateView',
   data() {
@@ -114,6 +113,7 @@ export default {
       },
       isPlaying: false,
       currentAudio: null,
+      worker: null
     }
   },
   methods: {
@@ -190,30 +190,41 @@ export default {
         return;
       }
       this.processNum = 0;
-      await separate1.loadAudio(this.songFile)
-      const blobs = await separate1.applyModel()
-      this.downloadBlob(blobs)
-      // separate.startProcessing(this.songFile, (progress, buffers, downloadLinks) => {
-      //   if(progress) {
-      //     this.processNum = progress.toFixed(2);
-      //   }
-      //   if (buffers) {
-      //     this.audioBuffers = buffers;
-      //     this.$nextTick(() => {
-      //       Object.keys(buffers).forEach(name => {
-      //         console.log(name)
-      //         this.drawWaveform(buffers[name], 'waveform-' + name);
-      //       });
-      //     });
-      //   }
-      //   if (downloadLinks) {
-      //     this.downloadLinks = downloadLinks;
-      //   }
-      // })
+      const audioRes = await demucsUtils.loadAudio(this.songFile)
+      this.worker.postMessage({
+        command: 'loadAudio',
+        data: audioRes,
+        id: 'load-audio-1'
+      })
     }
   },
-  async mounted() {
-    await separate1.loadONNXModel('/model/htdemucs.onnx')
+  mounted() {
+    let that = this
+    this.worker = new Worker('/public/demucs-worker.js', { type: 'module' });
+    this.worker.onmessage = (event) => {
+      const { id, status, result, error } = event.data;
+      if (status === 'model_loaded') {
+        console.log('模型加载完成');
+      } else if (status === 'audio_loaded') {
+        console.log('音频处理完成');
+        that.worker.postMessage({
+          command: 'applyModel',
+          id: 'apply-model-1'
+        });
+      } else if (status === 'complete') {
+        console.log('分离完成');
+        const blobs = demucsUtils.postProcess(result)
+        that.downloadBlob(blobs)
+        // 处理结果...
+      } else if (status === 'error') {
+        console.error('Worker错误:', error);
+      }
+    };
+    this.worker.postMessage({
+      command: 'loadModel',
+      data: { modelPath: '/model/htdemucs.onnx' },
+      id: 'load-model-1'
+    })
   }
 }    
 </script>
