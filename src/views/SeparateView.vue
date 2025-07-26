@@ -32,14 +32,7 @@
                 <button
                 class="px-5 py-1 rounded shadow-lg hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100" 
                 @click="startAnanlyze">开始分析</button>
-                <div v-show="processNum >= 0" class="w-64 mt-2">
-                    <div class="h-3 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                            class="h-full bg-blue-500 transition-all duration-300"
-                            :style="{ width: (processNum*100) + '%', backgroundImage: 'repeating-linear-gradient(-45deg, rgba(255,255,255,0.2), rgba(255,255,255,0.2) 10px, transparent 10px, transparent 20px)' }">
-                        </div>
-                    </div>
-                </div>
+
             </div>
         </div>
       </div>
@@ -77,14 +70,67 @@
           </svg>
         </button>
       </div>
+
+      <!-- 模型下载确认对话框 -->
+      <div v-if="showDownloadDialog" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+          <div class="flex items-center mb-4">
+            <div class="flex-shrink-0">
+              <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="text-lg font-medium text-gray-900">需要下载模型文件</h3>
+            </div>
+          </div>
+          
+          <div class="mb-6">
+            <p class="text-sm text-gray-600">
+              首次使用需要下载AI模型文件（约500MB），下载后将保存在浏览器缓存中，下次可直接使用。
+            </p>
+          </div>
+          
+          <div class="flex justify-end space-x-3">
+            <button
+              @click="hideDownloadConfirm"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+            >
+              取消
+            </button>
+            <button
+              @click="downloadModelFile"
+              class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              开始下载
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 自定义进度通知组件 -->
+      <CustomProgressNotification 
+        v-if="showProgressDialog"
+        :title="'正在处理音频文件'"
+        :message="'请耐心等待，AI正在分离音频轨道'"
+        :progress="downloadProgress"
+        :progressMessage="progressMessage"
+        :currentTime="progressCurrentTime"
+        :totalTime="progressTotalTime"
+      />
+
     </div>
 </template>
 
 <script>
 import { push } from 'notivue'
 import demucsUtils from '../js/demucsUtils.js'
+import CustomProgressNotification from '../components/CustomProgressNotification.vue'
 export default {
   name: 'SeparateView',
+  components: {
+    CustomProgressNotification
+  },
   data() {
     return {
       songFile: null,
@@ -113,7 +159,13 @@ export default {
       },
       isPlaying: false,
       currentAudio: null,
-      worker: null
+      worker: null,
+      showDownloadDialog: false,
+      showProgressDialog: false,
+      downloadProgress: 0,
+      progressMessage: '',
+      progressCurrentTime: '0:00',
+      progressTotalTime: '0:00'
     }
   },
   methods: {
@@ -180,6 +232,153 @@ export default {
         a.click();
       });
     },
+    // 检查模型文件是否存在
+    async checkModelFile() {
+      try {
+        // 首先检查缓存
+        const cache = await caches.open('model-cache');
+        const cachedResponse = await cache.match('/model/htdemucs.onnx');
+        if (cachedResponse) {
+          return true;
+        } else {
+          return false;
+        }
+      } catch (error) {
+        console.error('检查模型文件失败:', error);
+        return false;
+      }
+    },
+
+        // 显示下载确认对话框
+    showDownloadConfirm() {
+      this.showDownloadDialog = true;
+    },
+
+    // 隐藏下载确认对话框
+    hideDownloadConfirm() {
+      this.showDownloadDialog = false;
+    },
+
+    // 下载模型文件
+    async downloadModelFile() {
+      this.hideDownloadConfirm();
+      this.showProgressDialog = true;
+      this.downloadProgress = 0;
+      this.progressMessage = '正在下载模型文件...';
+      this.progressCurrentTime = '0:00';
+      this.progressTotalTime = '0:00';
+      
+      try {
+        const response = await fetch('/model/htdemucs.onnx');
+        if (!response.ok) {
+          throw new Error('模型文件下载失败');
+        }
+        const contentLength = response.headers.get('content-length');
+        const total = parseInt(contentLength, 10);
+        const reader = response.body.getReader();
+        const chunks = [];
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) break;
+          
+          chunks.push(value);
+          
+          // 计算下载进度
+          const downloaded = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
+          this.downloadProgress = total ? (downloaded / total) * 100 : 0;
+        }
+
+        // 保存到缓存
+        const blob = new Blob(chunks);
+        const cache = await caches.open('model-cache');
+        await cache.put('/model/htdemucs.onnx', new Response(blob, {
+          headers: {
+            'Content-Type': 'application/octet-stream'
+          }
+        }));
+
+        // 隐藏进度对话框
+        this.showProgressDialog = false;
+
+        push.success({
+          title: '模型文件下载完成',
+          duration: 3000,
+        });
+
+        // 重新加载模型并继续分析流程
+        try {
+          await this.initializeModel();
+          this.continueAnalysis();
+        } catch (error) {
+          console.error('模型加载失败:', error);
+          push.error({
+            title: '模型加载失败',
+            description: error.message,
+            duration: 5000,
+          });
+        }
+      } catch (error) {
+        console.error('下载模型文件失败:', error);
+        this.showProgressDialog = false;
+        push.error({
+          title: '模型文件下载失败',
+          description: error.message,
+          duration: 5000,
+        });
+      }
+    },
+
+    // 继续分析流程
+    async continueAnalysis() {
+      this.processNum = 0;
+      this.showProgressDialog = true;
+      this.downloadProgress = 0;
+      this.progressCurrent = 0;
+      this.progressTotal = 0;
+      this.progressMessage = '正在加载音频文件...';
+      this.progressCurrentTime = '0:00';
+      this.progressTotalTime = '0:00';
+      
+      const audioRes = await demucsUtils.loadAudio(this.songFile);
+      this.worker.postMessage({
+        command: 'loadAudio',
+        data: audioRes,
+        id: 'load-audio-1'
+      });
+    },
+
+    // 初始化模型
+    async initializeModel() {
+      const modelExists = await this.checkModelFile();
+      if (modelExists) {
+        return new Promise((resolve, reject) => {
+          const messageHandler = (event) => {
+            const { id, status, error } = event.data;
+            if (id === 'load-model-1') {
+              this.worker.removeEventListener('message', messageHandler);
+              if (status === 'model_loaded') {
+                console.log('模型加载完成');
+                resolve();
+              } else if (status === 'error') {
+                console.error('模型加载失败:', error);
+                reject(new Error(error));
+              }
+            }
+          };
+          
+          this.worker.addEventListener('message', messageHandler);
+          
+          this.worker.postMessage({
+            command: 'loadModel',
+            data: { modelPath: '/model/htdemucs.onnx' },
+            id: 'load-model-1'
+          });
+        });
+      }
+    },
+
     // 修改startAnanlyze方法中的回调处理
     async startAnanlyze() {
       if (!this.songFile) {
@@ -189,13 +388,16 @@ export default {
         })
         return;
       }
-      this.processNum = 0;
-      const audioRes = await demucsUtils.loadAudio(this.songFile)
-      this.worker.postMessage({
-        command: 'loadAudio',
-        data: audioRes,
-        id: 'load-audio-1'
-      })
+
+      // 检查模型文件是否存在
+      const modelExists = await this.checkModelFile();
+      if (!modelExists) {
+        this.showDownloadConfirm();
+        return;
+      }
+
+      // 模型文件存在，直接开始分析
+      this.continueAnalysis();
     }
   },
   mounted() {
@@ -206,13 +408,22 @@ export default {
       if (status === 'model_loaded') {
         console.log('模型加载完成');
       } else if (status === 'audio_loaded') {
-        console.log('音频处理完成');
+        that.progressMessage = '正在处理音频文件...';
         that.worker.postMessage({
           command: 'applyModel',
           id: 'apply-model-1'
         });
+      } else if (status === 'progress') {
+        console.log('进度:', result);
+        // 更新进度条
+        if (this.showProgressDialog && result.percent !== undefined) {
+          this.downloadProgress = result.percent;
+          this.progressMessage = result.message || '';
+          this.progressCurrentTime = result.currentTime || '0:00';
+          this.progressTotalTime = result.totalTime || '0:00';
+        }
       } else if (status === 'complete') {
-        console.log('分离完成');
+        that.showProgressDialog = false;
         const blobs = demucsUtils.postProcess(result)
         that.downloadBlob(blobs)
         // 处理结果...
@@ -220,12 +431,10 @@ export default {
         console.error('Worker错误:', error);
       }
     };
-    this.worker.postMessage({
-      command: 'loadModel',
-      data: { modelPath: '/model/htdemucs.onnx' },
-      id: 'load-model-1'
-    })
-  }
+    
+    // 初始化时尝试加载模型
+    this.initializeModel();
+  },
 }    
 </script>
 <style>

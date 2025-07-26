@@ -1,6 +1,7 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
 import { Notivue, Notification } from 'notivue'
+import CustomProgressNotification from './components/CustomProgressNotification.vue'
 </script>
 
 <template>

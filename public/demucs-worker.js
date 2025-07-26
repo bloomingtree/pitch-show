@@ -8,6 +8,8 @@ let modelSession
 let inputTensor
 let refMean
 let refStd
+let loadedModel = false
+let modelLoadingPromise = null
 const target_sr = 44100
 
 // 监听主线程消息
@@ -27,7 +29,7 @@ self.onmessage = async (event) => {
           break;
           
         case 'applyModel':
-          const outData = await applyModel();
+          const outData = await applyModel(id);
           self.postMessage({
             id,
             status: 'complete',
@@ -45,35 +47,71 @@ self.onmessage = async (event) => {
   
 
 async function loadONNXModel(modelPath) {
-    try {
-        // 添加跨域和MIME类型配置
-        const response = await fetch(modelPath, {
-            credentials: 'same-origin',
-            headers: {
-                'Accept': 'application/octet-stream'
-            }
-        });
-        
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        // 显式转换为ArrayBuffer
-        const modelBuffer = await response.arrayBuffer();
-        
-        // 创建推理会话
-        const session = await InferenceSession.create(modelBuffer, {
-            executionProviders: ['webgpu', 'webgl', 'wasm'],
-            graphOptimizationLevel: 'all',
-            executionMode: 'parallel',
-            wasm: {
-                worker: true
-            }
-        });
-        
-        modelSession = session
-    } catch (error) {
-        console.error('Failed to load ONNX model:', error);
-        throw new Error(`模型加载失败: ${error.message}`);
+    if(!modelPath) modelPath = '/model/htdemucs.onnx'
+    
+    // 如果模型已经加载完成，直接返回
+    if(loadedModel && modelSession) return;
+    
+    // 如果正在加载中，等待加载完成
+    if(modelLoadingPromise) {
+        await modelLoadingPromise;
+        return;
     }
+    
+    // 开始加载模型
+    loadedModel = true;
+    modelLoadingPromise = (async () => {
+        try {
+            let response;
+            
+            // 首先尝试从缓存加载
+            try {
+                const cache = await caches.open('model-cache');
+                response = await cache.match(modelPath);
+            } catch (cacheError) {
+                console.log('缓存访问失败，从服务器加载:', cacheError);
+            }
+            
+            // 如果缓存中没有，从服务器加载
+            if (!response) {
+                response = await fetch(modelPath, {
+                    credentials: 'same-origin',
+                    headers: {
+                        'Accept': 'application/octet-stream'
+                    }
+                });
+            }
+            
+            if (!response.ok) {
+                loadedModel = false
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            // 显式转换为ArrayBuffer
+            const modelBuffer = await response.arrayBuffer();
+            
+            // 创建推理会话
+            const session = await InferenceSession.create(modelBuffer, {
+                executionProviders: ['webgpu', 'webgl', 'wasm'],
+                graphOptimizationLevel: 'all',
+                executionMode: 'parallel',
+                wasm: {
+                    worker: true
+                }
+            });
+            modelSession = session
+        } catch (error) {
+            loadedModel = false
+            console.error('Failed to load ONNX model:', error);
+            throw new Error(`模型加载失败: ${error.message}`);
+        } finally {
+            // 清理加载Promise
+            modelLoadingPromise = null;
+        }
+    })();
+    
+    // 等待加载完成
+    await modelLoadingPromise;
 }
 
 function loadAudio(tensor, mean, std) {
@@ -118,7 +156,17 @@ function padChunk(tensor, offset, length, targetLength) {
     };
 }
 // 修改applyModel函数中的分块处理部分
-async function applyModel() {
+async function applyModel(id) {
+    // 确保模型加载完成
+    await loadONNXModel();
+    
+    // 验证模型是否成功加载
+    if (!loadedModel || !modelSession) {
+        throw new Error('模型加载失败，无法继续处理');
+    }
+    
+    console.log('loadONNXModel', loadedModel)
+    console.log('session', modelSession)
     const mixTensor = inputTensor;
     const overlap = 0.25
     const transitionPower = 1
@@ -152,7 +200,6 @@ async function applyModel() {
     const targetLength = Math.floor(segment * samplerate)
     // 分块处理
     for (let offset = 0; offset < length; offset += stride) {
-        console.log(offset, length)
         const chunkStart = offset;
         const chunkEnd = Math.min(offset + segmentLength, length);
         const chunkLength = chunkEnd - chunkStart;
@@ -161,7 +208,25 @@ async function applyModel() {
         // 调用runModel处理分块
         const chunkOut = await runModel(chunkTensor, segment, samplerate, chunkLength);
         futures.push({'future': chunkOut, 'offset': offset})
-        console.log('进度：', chunkEnd / length*100, '%')
+        const progressPercent = (chunkEnd / length * 100).toFixed(1);
+        // 将采样数转换为时间格式 (采样率44100Hz)
+        const currentTime = Math.floor(chunkEnd / samplerate);
+        const totalTime = Math.floor(length / samplerate);
+        const currentMinutes = Math.floor(currentTime / 60);
+        const currentSeconds = currentTime % 60;
+        const totalMinutes = Math.floor(totalTime / 60);
+        const totalSeconds = totalTime % 60;
+        
+        self.postMessage({
+            id,
+            status: 'progress',
+            result: {
+                percent: parseFloat(progressPercent),
+                currentTime: `${currentMinutes}:${currentSeconds.toString().padStart(2, '0')}`,
+                totalTime: `${totalMinutes}:${totalSeconds.toString().padStart(2, '0')}`,
+                message: `处理中... ${progressPercent}%`
+            }
+        })
     }
     // 初始化输出缓冲和权重缓冲（使用 buffer 避免大张量 concat）
     const outShape = [batch, lenModelSources, channels, length];
@@ -207,12 +272,11 @@ async function applyModel() {
         // 清理不再需要的张量
         tf.dispose(chunkOut);
     }
-
     // 从缓冲区创建张量
     let out = outBuffer.toTensor();
     const sumWeight = sumWeightBuffer.toTensor();
-
-    // 归一化处理
+    tf.setBackend('cpu')
+    await tf.ready()
     out = out.div(sumWeight.reshape([1, 1, 1, length]));
     return out.dataSync()
 }
@@ -323,10 +387,7 @@ async function runModel(mixTensor, segment, samplerate, realLength) {
             mag
         );
         toDispose.push(normalizedInput1, normalizedInput2);
-        
-        console.time('run');
         const results = await runONNXModel(modelSession, normalizedInput1, normalizedInput2);
-        console.timeEnd('run');
         
         // 添加ONNX资源到释放列表
         if (results.toDispose) {

@@ -207,6 +207,68 @@ function writeString(view, offset, string) {
     }
 }
 
+// 带进度条的模型下载
+async function downloadModelWithProgress() {
+    try {
+        progressStatus.textContent = "开始下载模型...";
+        
+        const response = await fetch(modelPath);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP错误! 状态: ${response.status}`);
+        }
+        
+        // 获取内容长度用于进度计算
+        const contentLength = response.headers.get('content-length');
+        modelSize = contentLength ? parseInt(contentLength) : 0;
+        updateModelSizeDisplay();
+        
+        const reader = response.body.getReader();
+        let receivedLength = 0;
+        let chunks = [];
+        
+        while (true) {
+            const {done, value} = await reader.read();
+            
+            if (done) break;
+            
+            chunks.push(value);
+            receivedLength += value.length;
+            
+            // 更新进度
+            if (modelSize > 0) {
+                const percent = Math.round((receivedLength / modelSize) * 100);
+                progressFill.style.width = `${percent}%`;
+                progressPercentage.textContent = `${percent}%`;
+                progressStatus.textContent = `下载中: ${(receivedLength / (1024 * 1024)).toFixed(2)}MB / ${(modelSize / (1024 * 1024)).toFixed(2)}MB`;
+            }
+        }
+        
+        // 合并所有chunks
+        let modelBuffer = new Uint8Array(receivedLength);
+        let position = 0;
+        for (let chunk of chunks) {
+            modelBuffer.set(chunk, position);
+            position += chunk.length;
+        }
+        
+        // 缓存模型
+        const cache = await caches.open('onnx-model-cache');
+        await cache.put(modelPath, new Response(modelBuffer));
+        progressStatus.textContent = "模型已下载并缓存";
+        
+        // 创建推理会话
+        await createInferenceSession(modelBuffer.buffer);
+        
+        // 更新缓存状态
+        cacheStatus.textContent = "已缓存";
+        cacheStatus.style.color = "#92fe9d";
+    } catch (error) {
+        console.error('下载失败:', error);
+        throw error;
+    }
+}
+
 export default {
     loadAudio,
     postProcess,
