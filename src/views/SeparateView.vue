@@ -442,7 +442,7 @@ export default {
       
       // 重新初始化worker
       this.$nextTick(() => {
-        this.worker = new Worker('/public/demucs-worker.js', { type: 'module' });
+        this.worker = new Worker('/demucs-worker.js', { type: 'module' });
         this.setupWorkerHandlers();
         // 重新初始化模型
         this.initializeModel();
