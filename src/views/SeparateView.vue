@@ -252,7 +252,7 @@ export default {
       this.progressTotalTime = '0:00';
       
       try {
-        const response = await fetch('/model/htdemucs.onnx');
+        const response = await fetch('https://r2.pitch.shiyin.cyou/htdemucs.onnx');
         if (!response.ok) {
           throw new Error('模型文件下载失败');
         }
@@ -276,7 +276,7 @@ export default {
         // 保存到缓存
         const blob = new Blob(chunks);
         const cache = await caches.open('model-cache');
-        await cache.put('/model/htdemucs.onnx', new Response(blob, {
+        await cache.put('https://r2.pitch.shiyin.cyou/htdemucs.onnx', new Response(blob, {
           headers: {
             'Content-Type': 'application/octet-stream'
           }
@@ -355,7 +355,7 @@ export default {
           
           this.worker.postMessage({
             command: 'loadModel',
-            data: { modelPath: '/model/htdemucs.onnx' },
+            data: { modelPath: 'https://r2.pitch.shiyin.cyou/htdemucs.onnx' },
             id: 'load-model-1'
           });
         });
