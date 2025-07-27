@@ -37,11 +37,16 @@
           </div>
         </div>
       </div>
-      <div class="mt-2">
+      <div class="mt-2 space-x-2">
         <router-link 
             to="/separate" 
             class="ml-1 p-1 bg-slate-200 rounded hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">
             / 音频分离 /
+          </router-link>
+          <router-link 
+            to="/" 
+            class="ml-1 p-1 bg-slate-200 rounded hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">
+            / 首页 /
           </router-link>
       </div>
       <div class="absolute -bottom-16 left-2 h-16 w-1/3 group-hover:scale-y-0 group-hover:-bottom-8 transition-all delay-200">
@@ -368,17 +373,41 @@ export default {
     })
     },
     setCanvasWH() {
-      this.noteAreaWidth = Math.floor(document.getElementById('canvasDiv').clientWidth)
-      this.noteAreaHeight = Math.floor(document.getElementById('canvasDiv').clientHeight)
+      const canvasDiv = document.getElementById('canvasDiv')
+      const noteCanvas = document.getElementById("note-canvas")
+      
+      // 检查元素是否存在
+      if (!canvasDiv || !noteCanvas) {
+        console.warn('Canvas elements not found, retrying...')
+        // 如果元素不存在，延迟重试
+        setTimeout(() => {
+          this.setCanvasWH()
+        }, 100)
+        return
+      }
+      
+      this.noteAreaWidth = Math.floor(canvasDiv.clientWidth)
+      this.noteAreaHeight = Math.floor(canvasDiv.clientHeight)
 
-      document.getElementById("note-canvas").width = this.noteAreaWidth
-			document.getElementById("note-canvas").height = this.noteAreaHeight
+      noteCanvas.width = this.noteAreaWidth
+      noteCanvas.height = this.noteAreaHeight
       this.secondLength = this.noteAreaHeight/this.showingSecond
     }
   },
   mounted() {
     this.getAnalysizedSongList()
-    this.setCanvasWH()
+    
+    // 使用 nextTick 确保 DOM 完全渲染后再设置 canvas
+    this.$nextTick(() => {
+      this.setCanvasWH()
+      
+      // 获取 canvas context
+      const c = document.getElementById("note-canvas")
+      if (c) {
+        this.noteCtx = c.getContext("2d")
+      }
+    })
+    
     window.addEventListener('resize', this.setCanvasWH)
     this.magnification = Math.floor(window.innerHeight/7)
     let that = this
@@ -386,9 +415,6 @@ export default {
     setTimeout(() => {
       that.isHovered = false
     }, 4000);
-
-    let c = document.getElementById("note-canvas")
-    this.noteCtx = c.getContext("2d")
   }
 }
 </script>

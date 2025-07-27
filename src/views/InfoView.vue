@@ -11,7 +11,7 @@
         <div class="mt-8">
           <p>这是一款免费扒谱、音频音高分析工具，帮助你更好地了解音乐，用户只需上传音频，静待2分钟，网站将借助basic-pitch进行分析，并显示在网页上，目前音符数据仅存储在本地。</p>
         </div>
-        <div class="m-8">
+        <div class="m-8 flex justify-center">
           <button
             @click="toMain"
             class="text-md font-bold border-2 rounded-lg bg-pink-400 text-white py-2 px-4 hover:bg-pink-500 transition-colors duration-300">立即使用</button>

@@ -1,7 +1,7 @@
 <template>
-    <div>
+    <div class="h-full overflow-hidden">
       <div class="absolute top-0 left-0 w-full h-full" v-show="processNum < 1">
-        <div class="flex flex-col items-center justify-center h-screen w-1/2 mx-auto">
+        <div class="flex flex-col items-center justify-center h-full w-1/2 mx-auto">
             <!-- 新增文字描述 -->
             <div class="mb-6 text-center">
                 <h1 class="text-5xl font-bold text-gray-800 mb-4">AI本地音频分离</h1>
@@ -16,8 +16,8 @@
 
             <!-- 原有上传组件 -->
             <div class="h-18 flex items-center justify-center">
-                <label for="dropzone-file" class="flex flex-col items-center justify-center py-10 px-20 w-full h-16 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
-                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                <label for="dropzone-file" class="flex flex-col items-center justify-center py-10 px-14 w-full h-16 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6 w-full">
                         <svg class="w-8 h-8 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
                             <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
                         </svg>
@@ -37,38 +37,23 @@
         </div>
       </div>
       <!-- 波形显示 -->
-      <div class="w-full h-full flex items-center justify-center bg-slate-50">
-        <div class="mt-4 w-full">
-          <div v-for="(buffer, name) in audioBuffers" :key="name" class="mb-1 bg-white rounded-lg shadow flex w-full">
-            <div class="px-5 min-w-24 h-20 bg-slate-200 flex justify-center items-center">
-              <h3 class="text-lg font-semibold text-gray-700 mb-2">{{ waveNameMap[name] }}</h3>
-            </div>
-            <canvas :ref="'waveform-' + name" class="flex1 h-20 waveform-canvas" :style="{ background: waveBgMap[name]}"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- 控制按钮 -->
-      <div class="fixed bottom-4 left-4 flex gap-2" v-show="processNum === 1">
-        <button 
-          @click="togglePlay"
-          class="p-2 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors">
-          <svg v-if="!isPlaying" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-          <svg v-else class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 9v6m-4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-        </button>
-        
-        <button 
-          @click="downloadAll"
-          class="p-2 bg-green-500 text-white rounded-full hover:bg-green-600 transition-colors">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-          </svg>
-        </button>
+      <div class="w-full h-full bg-slate-50">
+        <AudioWaveformPlayer
+          v-if="processNum === 1"
+          :audioBuffers="audioBuffers"
+          :waveNameMap="waveNameMap"
+          :waveBgMap="waveBgMap"
+          :waveColorMap="waveColorMap"
+          :originalFileName="songFile ? songFile.name : ''"
+          title="分离结果"
+          subtitle="点击下方按钮播放或下载音轨"
+          @play-start="onPlayStart"
+          @play-stop="onPlayStop"
+          @seek="onSeek"
+          @progress="onProgress"
+          @download="onDownload"
+          @delete-all="onDeleteAll"
+        />
       </div>
 
       <!-- 模型下载确认对话框 -->
@@ -87,7 +72,7 @@
           
           <div class="mb-6">
             <p class="text-sm text-gray-600">
-              首次使用需要下载AI模型文件（约500MB），下载后将保存在浏览器缓存中，下次可直接使用。
+              首次使用需要下载AI模型文件（约185MB），下载后将保存在浏览器缓存中，下次可直接使用。
             </p>
           </div>
           
@@ -126,10 +111,12 @@
 import { push } from 'notivue'
 import demucsUtils from '../js/demucsUtils.js'
 import CustomProgressNotification from '../components/CustomProgressNotification.vue'
+import AudioWaveformPlayer from '../components/AudioWaveformPlayer.vue'
 export default {
   name: 'SeparateView',
   components: {
-    CustomProgressNotification
+    CustomProgressNotification,
+    AudioWaveformPlayer
   },
   data() {
     return {
@@ -137,28 +124,23 @@ export default {
       processNum: -1,
       audioBuffers: {},
       waveNameMap: {
-        'bass': '低音',
         'drums': '鼓',
-        'melody': '旋律',
-        'instrum': '乐器',
+        'bass': '低音',
+        'other': '其他乐器',
         'vocals': '人声'
       },
       waveBgMap: {
-        'bass': '#fde68a',
         'drums': '#e7e5e4',
-        'melody': '#bbf7d0',
-        'instrum': '#f5d0fe',
+        'bass': '#fde68a',
+        'other': '#bbf7d0',
         'vocals': '#bfdbfe'
       },
       waveColorMap: {
-        'bass': '#f59e0b',
         'drums': '#57534e',
-        'melody': '#84cc16',
-        'instrum': '#c026d3',
+        'bass': '#f59e0b',
+        'other': '#84cc16',
         'vocals': '#06b6d4'
       },
-      isPlaying: false,
-      currentAudio: null,
       worker: null,
       showDownloadDialog: false,
       showProgressDialog: false,
@@ -169,6 +151,42 @@ export default {
     }
   },
   methods: {
+    // 设置worker消息处理器
+    setupWorkerHandlers() {
+      let that = this;
+      this.worker.onmessage = (event) => {
+        const { id, status, result, error } = event.data;
+        if (status === 'model_loaded') {
+          // 模型加载完成
+        } else if (status === 'audio_loaded') {
+          that.progressMessage = '正在处理音频文件...';
+          that.worker.postMessage({
+            command: 'applyModel',
+            id: 'apply-model-1'
+          });
+        } else if (status === 'progress') {
+          // 更新进度条
+          if (this.showProgressDialog && result.percent !== undefined) {
+            this.downloadProgress = result.percent;
+            this.progressMessage = result.message || '';
+            this.progressCurrentTime = result.currentTime || '0:00';
+            this.progressTotalTime = result.totalTime || '0:00';
+          }
+        } else if (status === 'complete') {
+          that.showProgressDialog = false;
+          const blobs = demucsUtils.postProcess(result)
+          // 将Blob转换为AudioBuffer用于波形显示和播放
+          that.processAudioResults(blobs)
+        } else if (status === 'error') {
+          push.error({
+            title: '处理音频文件失败，请反馈至kecsun@163.com',
+            description: error,
+            duration: 5000,
+          });
+        }
+      };
+    },
+
     chooseMusicFile(event) {
       const files = event.target.files;
       if (files.length > 0) {
@@ -186,42 +204,7 @@ export default {
       }
     },
 
-    drawWaveform(buffer, canvasRef) {
-      const canvas = this.$refs[canvasRef][0];
-      const ctx = canvas.getContext('2d');
-      // 获取父容器总宽度并减去左侧固定宽度w-40（160px）
-      const parentWidth = canvas.parentElement.parentElement.offsetWidth;
-      const availableWidth = parentWidth - 160; // 160px是左侧标题容器的宽度
-      
-      // 设置canvas尺寸
-      const width = canvas.width = availableWidth * 2;
-      canvas.style.width = availableWidth + 'px'; // 实际显示宽度
-      const height = canvas.height = 80;
-      
-      ctx.clearRect(0, 0, canvas.width, height);
-      
-      // 降采样显示（每100个采样点取一个）
-      const channelData = buffer.getChannelData(0);
-      const step = Math.ceil(channelData.length / 2000);
-      const points = [];
-      
-      for (let i = 0; i < channelData.length; i += step) {
-        points.push(channelData[i]);
-      }
-  
-      ctx.beginPath();
-      ctx.moveTo(0, height/2);
-      ctx.strokeStyle = this.waveColorMap[canvasRef.split('-')[1]];
-      ctx.lineWidth = 2;
-  
-      points.forEach((val, i) => {
-        const x = (i / points.length) * width; // 使用canvas实际宽度
-        const y = (val * height/2) + height/2;
-        ctx.lineTo(x, y);
-      });
 
-      ctx.stroke();
-    },
     downloadBlob(separatedTracks) {
 
       Object.entries(separatedTracks).forEach(([name, blob]) => {
@@ -237,7 +220,7 @@ export default {
       try {
         // 首先检查缓存
         const cache = await caches.open('model-cache');
-        const cachedResponse = await cache.match('/model/htdemucs.onnx');
+        const cachedResponse = await cache.match('https://r2.pitch.shiyin.cyou/htdemucs.onnx');
         if (cachedResponse) {
           return true;
         } else {
@@ -379,6 +362,93 @@ export default {
       }
     },
 
+    // 处理音频分离结果
+    async processAudioResults(blobs) {
+      try {
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioBuffers = {};
+        
+        // 将每个音轨的Blob转换为AudioBuffer
+        for (const [name, blob] of Object.entries(blobs)) {
+          const arrayBuffer = await blob.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          audioBuffers[name] = audioBuffer;
+        }
+        
+        // 更新data中的audioBuffers
+        this.audioBuffers = audioBuffers;
+        
+        // 设置处理完成状态
+        this.processNum = 1;
+        
+        push.success({
+          title: '音频分离完成',
+          description: '可以在下方播放和下载分离后的音轨',
+          duration: 3000,
+        });
+      } catch (error) {
+        console.error('处理音频结果失败:', error);
+        push.error({
+          title: '处理音频结果失败',
+          description: error.message,
+          duration: 5000,
+        });
+      }
+    },
+
+    // 播放开始
+    onPlayStart() {
+    },
+
+    // 播放停止
+    onPlayStop() {
+    },
+
+    // 跳转到时间
+    onSeek(time) {
+    },
+    // 播放进度
+    onProgress(progressData) {
+    },
+    // 下载完成
+    onDownload() {
+    },
+
+    // 删除所有结果，重置到上传状态
+    onDeleteAll() {
+      // 重置所有状态
+      this.songFile = null;
+      this.processNum = -1;
+      this.audioBuffers = {};
+      
+      // 清理进度对话框
+      this.showProgressDialog = false;
+      this.downloadProgress = 0;
+      this.progressMessage = '';
+      this.progressCurrentTime = '0:00';
+      this.progressTotalTime = '0:00';
+      
+      // 清理文件输入框
+      const fileInput = document.getElementById('dropzone-file');
+      if (fileInput) {
+        fileInput.value = '';
+      }
+      
+      // 终止当前worker（如果存在）
+      if (this.worker) {
+        this.worker.terminate();
+        this.worker = null;
+      }
+      
+      // 重新初始化worker
+      this.$nextTick(() => {
+        this.worker = new Worker('/public/demucs-worker.js', { type: 'module' });
+        this.setupWorkerHandlers();
+        // 重新初始化模型
+        this.initializeModel();
+      });
+    },
+
     // 修改startAnanlyze方法中的回调处理
     async startAnanlyze() {
       if (!this.songFile) {
@@ -401,39 +471,17 @@ export default {
     }
   },
   mounted() {
-    let that = this
     this.worker = new Worker('/public/demucs-worker.js', { type: 'module' });
-    this.worker.onmessage = (event) => {
-      const { id, status, result, error } = event.data;
-      if (status === 'model_loaded') {
-        console.log('模型加载完成');
-      } else if (status === 'audio_loaded') {
-        that.progressMessage = '正在处理音频文件...';
-        that.worker.postMessage({
-          command: 'applyModel',
-          id: 'apply-model-1'
-        });
-      } else if (status === 'progress') {
-        console.log('进度:', result);
-        // 更新进度条
-        if (this.showProgressDialog && result.percent !== undefined) {
-          this.downloadProgress = result.percent;
-          this.progressMessage = result.message || '';
-          this.progressCurrentTime = result.currentTime || '0:00';
-          this.progressTotalTime = result.totalTime || '0:00';
-        }
-      } else if (status === 'complete') {
-        that.showProgressDialog = false;
-        const blobs = demucsUtils.postProcess(result)
-        that.downloadBlob(blobs)
-        // 处理结果...
-      } else if (status === 'error') {
-        console.error('Worker错误:', error);
-      }
-    };
+    this.setupWorkerHandlers();
     
     // 初始化时尝试加载模型
     this.initializeModel();
+  },
+  beforeDestroy() {
+    // 组件销毁时清理资源
+    if (this.worker) {
+      this.worker.terminate();
+    }
   },
 }    
 </script>

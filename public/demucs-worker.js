@@ -47,7 +47,7 @@ self.onmessage = async (event) => {
   
 
 async function loadONNXModel(modelPath) {
-    if(!modelPath) modelPath = '/model/htdemucs.onnx'
+    if(!modelPath) modelPath = 'https://r2.pitch.shiyin.cyou/htdemucs.onnx'
     
     // 如果模型已经加载完成，直接返回
     if(loadedModel && modelSession) return;
@@ -165,8 +165,6 @@ async function applyModel(id) {
         throw new Error('模型加载失败，无法继续处理');
     }
     
-    console.log('loadONNXModel', loadedModel)
-    console.log('session', modelSession)
     const mixTensor = inputTensor;
     const overlap = 0.25
     const transitionPower = 1
@@ -587,7 +585,6 @@ const spectro = (audioData, nfft = 4096, hl = 1024) => {
         const fftInput = new Array(nfft);
         const fftOutput = new Array(nfft * 2); // 输出是复数（实部+虚部）
         
-        console.time('fft_compute');
         
         // 逐批次处理
         for (let b = 0; b < totalBatch; b++) {
@@ -624,7 +621,6 @@ const spectro = (audioData, nfft = 4096, hl = 1024) => {
             }
         }
         
-        console.timeEnd('fft_compute');
         
         // 创建复数张量 [batch, frames, freqs]
         const complexSpectrum = tf.complex(
@@ -805,9 +801,7 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         // 重新组合为复数张量（在原始后端执行）
         const padded = tf.complex(paddedReal, paddedImag);
         // 执行逆STFT
-        console.time('istft_compute')
         const x = istft(padded, nfft, hl);
-        console.timeEnd('istft_compute')
         // 裁剪信号
         const start = pad;
         const end = start + training_length;
@@ -815,7 +809,6 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         const cropped = x.slice([0,start], [-1,end-start]);
         const x_time = cropped.reshape([B1, S1, C1, end-start]);
         // 4. 计算均值和标准差
-        console.time('average_compute')
         const reductionIndices = [1, 2];
         const padded_t = tf.tensor(padded_m.cpuData, padded_m.dims, 'float32');
         const meant = padded_t.mean(reductionIndices, true);
@@ -828,7 +821,6 @@ function demucsPostProcess(m, xt, padded_m, segment, samplerate, B, S) {
         const expanded_meant = meant.expandDims(1);
         
         processed_xt = processed_xt.mul(expanded_stdt).add(expanded_meant);
-        console.timeEnd('average_compute')
         // 7. 合并结果
         return processed_xt.add(x_time);
     });
@@ -886,7 +878,6 @@ function istft(input, n_fft, hop_length, win_length, window, center = true, norm
         const fft = new FFT(n_fft);
         const ifftInput = new Array(n_fft * 2);
         const ifftOutput = new Array(n_fft * 2);
-        console.time('istft')
         // 9. 处理每个批次
         for (let b = 0; b < batchSize; b++) {
             // 10. 处理每一帧
@@ -946,7 +937,6 @@ function istft(input, n_fft, hop_length, win_length, window, center = true, norm
                 }
             }
         }
-        console.timeEnd('istft')
         // 17. 归一化输出信号
         for (let i = 0; i < outputData.length; i++) {
             if (weightData[i] > 1e-10) {  // 避免除以零
