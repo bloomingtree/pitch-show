@@ -15,7 +15,6 @@ const target_sr = 44100
 // 监听主线程消息
 self.onmessage = async (event) => {
     const { command, data, id } = event.data;
-    
     try {
       switch (command) {
         case 'loadModel':
@@ -47,8 +46,7 @@ self.onmessage = async (event) => {
   
 
 async function loadONNXModel(modelPath) {
-    if(!modelPath) modelPath = 'https://r2.pitch.shiyin.cyou/htdemucs.onnx'
-    
+    if(!modelPath) modelPath = 'https://nr9uwdeyhrffuqbu.public.blob.vercel-storage.com/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx'
     // 如果模型已经加载完成，直接返回
     if(loadedModel && modelSession) return;
     
@@ -71,7 +69,6 @@ async function loadONNXModel(modelPath) {
             } catch (cacheError) {
                 console.log('缓存访问失败，从服务器加载:', cacheError);
             }
-            
             // 如果缓存中没有，从服务器加载
             if (!response) {
                 response = await fetch(modelPath, {

@@ -147,7 +147,8 @@ export default {
       downloadProgress: 0,
       progressMessage: '',
       progressCurrentTime: '0:00',
-      progressTotalTime: '0:00'
+      progressTotalTime: '0:00',
+      modelPath: 'https://nr9uwdeyhrffuqbu.public.blob.vercel-storage.com/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx'
     }
   },
   methods: {
@@ -220,7 +221,7 @@ export default {
       try {
         // 首先检查缓存
         const cache = await caches.open('model-cache');
-        const cachedResponse = await cache.match('https://r2.pitch.shiyin.cyou/htdemucs.onnx');
+        const cachedResponse = await cache.match(this.modelPath);
         if (cachedResponse) {
           return true;
         } else {
@@ -252,12 +253,11 @@ export default {
       this.progressTotalTime = '0:00';
       
       try {
-        const response = await fetch('https://r2.pitch.shiyin.cyou/htdemucs.onnx');
+        const response = await fetch(this.modelPath);
         if (!response.ok) {
           throw new Error('模型文件下载失败');
         }
-        const contentLength = response.headers.get('content-length');
-        const total = parseInt(contentLength, 10);
+        const total = 186*1024*1024;
         const reader = response.body.getReader();
         const chunks = [];
 
@@ -276,7 +276,7 @@ export default {
         // 保存到缓存
         const blob = new Blob(chunks);
         const cache = await caches.open('model-cache');
-        await cache.put('https://r2.pitch.shiyin.cyou/htdemucs.onnx', new Response(blob, {
+        await cache.put(this.modelPath, new Response(blob, {
           headers: {
             'Content-Type': 'application/octet-stream'
           }
@@ -334,6 +334,7 @@ export default {
 
     // 初始化模型
     async initializeModel() {
+      let that = this;
       const modelExists = await this.checkModelFile();
       if (modelExists) {
         return new Promise((resolve, reject) => {
@@ -342,7 +343,6 @@ export default {
             if (id === 'load-model-1') {
               this.worker.removeEventListener('message', messageHandler);
               if (status === 'model_loaded') {
-                console.log('模型加载完成');
                 resolve();
               } else if (status === 'error') {
                 console.error('模型加载失败:', error);
@@ -351,11 +351,10 @@ export default {
             }
           };
           
-          this.worker.addEventListener('message', messageHandler);
-          
-          this.worker.postMessage({
+          that.worker.addEventListener('message', messageHandler);
+          that.worker.postMessage({
             command: 'loadModel',
-            data: { modelPath: 'https://r2.pitch.shiyin.cyou/htdemucs.onnx' },
+            data: { modelPath: that.modelPath },
             id: 'load-model-1'
           });
         });
@@ -471,7 +470,8 @@ export default {
     }
   },
   mounted() {
-    this.worker = new Worker('/demucs-worker.js', { type: 'module' });
+    const BASE_URL=process.env.NODE_ENV==='production'?'/':'/public/'
+    this.worker = new Worker(BASE_URL+'demucs-worker.js', { type: 'module' });
     this.setupWorkerHandlers();
     
     // 初始化时尝试加载模型
