@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm run copy-worker",
+    "copy-worker": "node -e \"const fs=require('fs');fs.copyFileSync('public/demucs-worker.js','dist/demucs-worker.js')\"",
     "preview": "npm run build && wrangler pages dev ./dist",
     "deploy": "npm run build && wrangler pages deploy ./dist"
   },

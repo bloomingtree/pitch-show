@@ -441,10 +441,20 @@ export default {
       
       // 重新初始化worker
       this.$nextTick(() => {
-        this.worker = new Worker('/demucs-worker.js', { type: 'module' });
-        this.setupWorkerHandlers();
-        // 重新初始化模型
-        this.initializeModel();
+        try {
+          const workerPath = process.env.NODE_ENV === 'production' ? '/demucs-worker.js' : '/public/demucs-worker.js';
+          this.worker = new Worker(workerPath, { type: 'module' });
+          this.setupWorkerHandlers();
+          // 重新初始化模型
+          this.initializeModel();
+        } catch (error) {
+          console.error('Worker重新初始化失败:', error);
+          push.error({
+            title: 'Worker重新初始化失败',
+            description: '请刷新页面重试',
+            duration: 5000,
+          });
+        }
       });
     },
 
@@ -465,17 +475,28 @@ export default {
         return;
       }
 
-      // 模型文件存在，直接开始分析
-      this.continueAnalysis();
-    }
-  },
+              // 模型文件存在，直接开始分析
+        this.continueAnalysis();
+      }
+    },
   mounted() {
-    const BASE_URL=process.env.NODE_ENV==='production'?'/':'/public/'
-    this.worker = new Worker(BASE_URL+'demucs-worker.js', { type: 'module' });
-    this.setupWorkerHandlers();
+    // 在Cloudflare Pages上，静态文件直接放在根目录下
+    const workerPath = process.env.NODE_ENV === 'production' ? '/demucs-worker.js' : '/public/demucs-worker.js';
     
-    // 初始化时尝试加载模型
-    this.initializeModel();
+    try {
+      this.worker = new Worker(workerPath, { type: 'module' });
+      this.setupWorkerHandlers();
+      
+      // 初始化时尝试加载模型
+      this.initializeModel();
+    } catch (error) {
+      console.error('Worker初始化失败:', error);
+      push.error({
+        title: 'Worker初始化失败',
+        description: '请检查网络连接或刷新页面重试',
+        duration: 5000,
+      });
+    }
   },
   beforeDestroy() {
     // 组件销毁时清理资源

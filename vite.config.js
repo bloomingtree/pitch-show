@@ -30,6 +30,15 @@ export default defineConfig({
       }
     }
   },
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html'
+      }
+    },
+    assetsInlineLimit: 0, // 确保worker文件不被内联
+    copyPublicDir: true
+  },
   optimizeDeps: {
     exclude: ['onnxruntime-web']
   }
