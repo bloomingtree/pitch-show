@@ -112,6 +112,7 @@ import { push } from 'notivue'
 import demucsUtils from '../js/demucsUtils.js'
 import CustomProgressNotification from '../components/CustomProgressNotification.vue'
 import AudioWaveformPlayer from '../components/AudioWaveformPlayer.vue'
+import DemucsWorker from '../js/demucs-worker.js?worker'
 export default {
   name: 'SeparateView',
   components: {
@@ -443,7 +444,7 @@ export default {
       this.$nextTick(() => {
         try {
           const workerPath = process.env.NODE_ENV === 'production' ? '/demucs-worker.js' : '/public/demucs-worker.js';
-          this.worker = new Worker(workerPath, { type: 'module' });
+          this.worker = new DemucsWorker({ type: 'module' });
           this.setupWorkerHandlers();
           // 重新初始化模型
           this.initializeModel();
@@ -484,7 +485,7 @@ export default {
     const workerPath = process.env.NODE_ENV === 'production' ? '/demucs-worker.js' : '/public/demucs-worker.js';
     
     try {
-      this.worker = new Worker(workerPath, { type: 'module' });
+      this.worker = new DemucsWorker({ type: 'module' });
       this.setupWorkerHandlers();
       
       // 初始化时尝试加载模型
