@@ -97,6 +97,7 @@
     <div>
       <audio-player ref="audioPlayer" @timeupdate="timeUpdate"></audio-player>
     </div>
+     
   </div>
 </template>
 
