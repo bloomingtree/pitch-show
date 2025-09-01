@@ -10,8 +10,8 @@
               <svg class="w-8 h-8 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
                   <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
               </svg>
-              <p class="text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">上传</span>分析音频</p>
-              <p class="text-xs text-gray-500 dark:text-gray-400">MP3 WAV</p>
+              <p class="text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">{{ $t('mainView.listBar.uploadDescription[0]') }}</span> {{ $t('mainView.listBar.uploadDescription[1]') }}</p>
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ $t('mainView.listBar.uploadDescription[2]') }}</p>
           </div>
           <input id="dropzone-file" type="file" class="hidden" @change="chooseMusicFile" accept=".mp3, .wav" />
         </label>
@@ -20,20 +20,20 @@
       <div class="mt-3 flex flex-col items-center justify-center">
         <button
         class="px-5 py-1 rounded shadow-lg hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100" 
-        @click="startAnanlyze" :disabled="songFile === null">开始分析</button>
-        <div v-show="processStr !== ''">进度：{{ processStr }}</div>
+        @click="startAnanlyze" :disabled="songFile === null">{{ $t('mainView.listBar.analyzeButton') }}</button>
+        <div v-show="processStr !== ''">{{ $t('mainView.listBar.progress') }}:{{ processStr }}</div>
       </div>
       <div class="h-48 mt-4 bg-amber-100 flex flex-col z-20">
         <div class="text-left bg-white">
-          <span class="bg-orange-300 rounded-t px-2 pt-2 font-bold">已分析歌曲</span>
+          <span class="bg-orange-300 rounded-t px-2 pt-2 font-bold">{{ $t('mainView.listBar.listName') }}</span>
         </div>
         <div class="px-3 rounded overflow-y-scroll flex1">
           <div v-for="(song, index) in analyzedSong" :key="index" class="border-b py-1">
             {{song.name}}
             <button @click="showSong(song)" 
-            class="ml-1 p-1 rounded shadow-lg bg-amber-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">显示</button>
+            class="ml-1 p-1 rounded shadow-lg bg-amber-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.showButton') }}</button>
             <button @click="deleteSong(song.name, index)"
-            class="ml-1 p-1 rounded shadow-lg bg-stone-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">删除</button>
+            class="ml-1 p-1 rounded shadow-lg bg-stone-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.deleteButton') }}</button>
           </div>
         </div>
       </div>
@@ -41,12 +41,12 @@
         <router-link 
             to="/separate" 
             class="ml-1 p-1 bg-slate-200 rounded hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">
-            / 音频分离 /
+            {{ $t('mainView.listBar.separateButton') }}
           </router-link>
           <router-link 
             to="/" 
             class="ml-1 p-1 bg-slate-200 rounded hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">
-            / 首页 /
+            {{ $t('mainView.listBar.firstButton') }}
           </router-link>
       </div>
       <div class="absolute -bottom-16 left-2 h-16 w-1/3 group-hover:scale-y-0 group-hover:-bottom-8 transition-all delay-200">

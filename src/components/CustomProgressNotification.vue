@@ -37,11 +37,11 @@ export default {
   props: {
     title: {
       type: String,
-      default: '正在下载模型文件'
+      default: ''
     },
     message: {
       type: String,
-      default: '请耐心等待，文件较大需要一些时间'
+      default: ''
     },
     progress: {
       type: Number,

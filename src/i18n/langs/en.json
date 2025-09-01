@@ -1,0 +1,123 @@
+{
+    "infoView": {
+        "title": "Upload audio, easily get note information!",
+        "description": "This is a free music notation tool that helps you better understand music. Users only need to upload audio, wait for 2 minutes, and the website will analyze the audio using basic-pitch and display the results on the web page. Currently, the note data is only stored locally.",
+        "button": "Use Now",
+        "whatIsBasicPitch": "What is Basic-Pitch?",
+        "whatIsBasicPitchDescription": "Basic-Pitch is a lightweight audio to MIDI tool developed by Spotify, using advanced machine learning algorithms to efficiently and accurately identify note information (pitch, duration) in audio.",
+        "ourAdvantages": "Our Advantages",
+        "advantage1": "Easy to Use",
+        "advantage1Description": "Upload audio to quickly get note information.",
+        "advantage2": "Accurate Recognition",
+        "advantage2Description": "Accurately recognize melody, harmony, and other note information.",
+        "advantage3": "Free to Use",
+        "advantage3Description": "No registration, no payment required.",
+        "useNow": "Use Now",
+        "useNowDescription": "Upload your audio file, start your music creation journey!",
+        "copyright": "Copyright"
+    },
+    "navigationBar": {
+        "first": "Home",
+        "main": "Pitch Analysis",
+        "separate": "Audio Separation",
+        "about": "About",
+        "name": "Music Note",
+        "nameDescription": "AI Music Note"
+    },
+    "mainView": {
+        "listBar": {
+            "uploadDescription": ["Upload", "Analyze Audio", "MP3 WAV"],
+            "analyzeButton": "Start Analysis",
+            "progress": "Progress",
+            "listName": "Analyzed Songs",
+            "showButton": "Show",
+            "deleteButton": "Delete",
+            "separateButton": "/ Audio Separation / ",
+            "firstButton": "/ Home /"
+        },
+        "helpBar": {
+            "title": "Shortcut Help",
+            "leftButton": "Move left 2 seconds",
+            "rightButton": "Move right 2 seconds",
+            "backButton": "Back to start position",
+            "spaceButton": "Play/Pause",
+            "sponsorSpan": "Your sponsorship is the motivation for my updates!"
+        },
+        "aboutView": {
+            "title": "About Music Note",
+            "description": "AI Music Note Tool - Free Audio Pitch Analysis Tool",
+            "functionTitle": "Features",
+            "techTitle": "Technical Features",
+            "function1": "Pitch Analysis: Accurately detect notes and pitch in audio",
+            "function2": "Audio Separation: AI separates vocals, drums, bass and other tracks",
+            "function3": "Local Processing: Protect privacy, no need to upload to cloud",
+            "function4": "Free to Use: No registration, no payment required",
+            "tech1": "Based on Spotify Basic-Pitch technology",
+            "tech2": "Uses Demucs for audio separation",
+            "tech3": "Supports multiple audio formats",
+            "tech4": "High-precision note recognition",
+            "instructionTitle": "Instructions",
+            "instruction1": "Music Note is a professional audio analysis tool that uses advanced AI technology to provide users with accurate pitch analysis and audio separation services. All processing is done locally to ensure the privacy and security of your audio files.",
+            "instruction2": "Supports common audio formats such as MP3, WAV, etc. The operation is simple and the results are accurate. Whether it's music learning, creation, or analysis, Music Note can provide you with professional help.",
+            "contactTitle": "Contact Us",
+            "contact": "If you encounter any problems during use, or have any suggestions and feedback, please feel free to contact us. (kecsun@163.com) We will continue to improve our products to provide users with a better service experience."
+        },
+        "separateView": {
+            "title": "AI Local Audio Separation",
+            "subtitle": "Realize vocal and accompaniment separation based on local CPU computing",
+            "feature1": "No cloud upload required, 100% local processing",
+            "feature2": "7-minute audio takes about 40 minutes to process",
+            "feature3": "Please keep the page open during processing, refresh the page to cancel the task",
+            "feature4": "Supports MP3/WAV format, recommended duration less than 10 minutes",
+            "uploadText": ["Upload", " Analyze Audio", "MP3 WAV"],
+            "fileFormat": "MP3 WAV",
+            "startAnalysis": "Start Analysis",
+            "separationResult": "Separation Result",
+            "separationSubtitle": "Click the buttons below to play or download tracks",
+            "modelDownloadTitle": "Model File Download Required",
+            "modelDownloadDescription": "First use requires downloading AI model files (about 185MB), which will be saved in browser cache after download and can be used directly next time.",
+            "cancel": "Cancel",
+            "startDownload": "Start Download",
+            "processingTitle": "Processing Audio File",
+            "processingMessage": "Please wait patiently, AI is separating audio tracks",
+            "modelDownloading": "Downloading model files...",
+            "loadingAudio": "Loading audio file...",
+            "processingAudio": "Processing audio file...",
+            "modelDownloadComplete": "Model file download complete",
+            "modelLoadFailed": "Model loading failed",
+            "modelDownloadFailed": "Model file download failed",
+            "audioSeparationComplete": "Audio separation complete",
+            "audioSeparationDescription": "You can play and download separated tracks below",
+            "processingResultFailed": "Failed to process audio results",
+            "workerInitFailed": "Worker initialization failed",
+            "workerInitFailedDescription": "Please check network connection or refresh the page to retry",
+            "workerReinitFailed": "Worker re-initialization failed",
+            "workerReinitFailedDescription": "Please refresh the page to retry",
+            "pleaseUploadAudio": "Please upload audio file first",
+            "pleaseSelectValidAudio": "Please select a valid audio file",
+            "onlyAudioFilesAllowed": "Only audio files are allowed",
+            "tracks": {
+                "drums": "Drums",
+                "bass": "Bass",
+                "other": "Other Instruments",
+                "vocals": "Vocals"
+            }
+        },
+        "waveformPlayer": {
+            "title": "Audio Waveform",
+            "subtitle": "Click the buttons below to play or download tracks",
+            "tracks": {
+                "drums": "Drums",
+                "bass": "Bass",
+                "other": "Other Instruments",
+                "vocals": "Vocals"
+            },
+            "playFailed": "Play Failed",
+            "downloadComplete": "Download Complete",
+            "downloadCompleteDescription": "All track files have started downloading",
+            "downloadFailed": "Download Failed",
+            "cleaned": "Cleaned",
+            "cleanedDescription": "Current results have been cleaned, you can upload audio again"
+        }
+    }
+}

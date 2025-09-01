@@ -10,8 +10,8 @@
                 <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.369 4.369 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
               </svg>
             </div>
-            <span class="text-xl font-bold text-gray-800">识音</span>
-            <span class="text-sm text-gray-500">AI扒谱神器</span>
+            <span class="text-xl font-bold text-gray-800">{{ $t('navigationBar.name') }}</span>
+            <span class="text-sm text-gray-500">{{ $t('navigationBar.nameDescription') }}</span>
           </div>
         </div>
 
@@ -25,7 +25,7 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
             </svg>
-            首页
+            {{ $t('navigationBar.first') }}
           </router-link>
           
           <router-link 
@@ -36,7 +36,7 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
             </svg>
-            音高分析
+            {{ $t('navigationBar.main') }}
           </router-link>
           
           <router-link 
@@ -47,7 +47,7 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
             </svg>
-            音频分离
+            {{ $t('navigationBar.separate') }}
           </router-link>
           
           <router-link 
@@ -58,10 +58,18 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            关于
+            {{ $t('navigationBar.about') }}
           </router-link>
         </div>
-
+        <!-- 语言切换 -->
+        <div class="flex items-center  cursor-pointer">
+          
+          <select class="nav-link" v-model="language" @change="changeLanguage">
+            <option value="en" class="text-gray-600 px-2 py-2">English</option>
+            <option value="zh" class="text-gray-600">中文</option>
+            <option v-show="false" value="Language">Language</option>
+          </select>
+        </div>
         <!-- 移动端菜单按钮 -->
         <div class="md:hidden flex items-center ml-auto">
           <button 
@@ -87,7 +95,7 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
             </svg>
-            首页
+            {{ $t('navigationBar.first') }}
           </router-link>
           
           <router-link 
@@ -99,7 +107,7 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
             </svg>
-            音高分析
+            {{ $t('navigationBar.main') }}
           </router-link>
           
           <router-link 
@@ -111,7 +119,7 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
             </svg>
-            音频分离
+            {{ $t('navigationBar.separate') }}
           </router-link>
           
           <router-link 
@@ -123,7 +131,7 @@
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            关于
+            {{ $t('navigationBar.about') }}
           </router-link>
         </div>
       </div>
@@ -136,7 +144,8 @@ export default {
   name: 'NavigationBar',
   data() {
     return {
-      mobileMenuOpen: false
+      mobileMenuOpen: false,
+      language: 'Language'
     }
   },
   methods: {
@@ -145,7 +154,14 @@ export default {
     },
     closeMobileMenu() {
       this.mobileMenuOpen = false
+    },
+    changeLanguage() {
+      this.$i18n.locale = this.language;
+      localStorage.setItem('language', this.language);
     }
+  },
+  mounted() {
+    this.language = localStorage.getItem('language') || 'Language';
   }
 }
 </script>

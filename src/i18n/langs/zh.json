@@ -1,0 +1,123 @@
+{
+    "infoView": {
+        "title": "上传音频，轻松获取音符信息！",
+        "description": "这是一款免费扒谱、音频音高分析工具，帮助你更好地了解音乐，用户只需上传音频，静待2分钟，网站将借助basic-pitch进行分析，并显示在网页上，目前音符数据仅存储在本地。",
+        "button": "立即使用",
+        "whatIsBasicPitch": "什么是 Basic-Pitch？",
+        "whatIsBasicPitchDescription": "Basic-Pitch 是一款由 Spotify 开源的轻量级音频转 MIDI 工具，采用先进的机器学习算法，能够高效准确地识别音频中的音符信息（音高、长度）。",
+        "ourAdvantages": "我们的优势",
+        "advantage1": "操作简单",
+        "advantage1Description": "上传音频即可快速获取音符信息。",
+        "advantage2": "精准识别",
+        "advantage2Description": "准确识别旋律、和声等音符信息。",
+        "advantage3": "免费使用",
+        "advantage3Description": "无需注册，无需付费。",
+        "useNow": "立即体验",
+        "useNowDescription": "上传您的音频文件，开始您的音乐创作之旅！",
+        "copyright": "版权所有"
+    },
+    "navigationBar": {
+        "first": "首页",
+        "main": "音高分析",
+        "separate": "音频分离",
+        "about": "关于",
+        "name": "识音",
+        "nameDescription": "AI扒谱神器"
+    },
+    "mainView": {
+        "listBar": {
+            "uploadDescription": ["上传", "分析音频", "MP3 WAV"],
+            "analyzeButton": "开始分析",
+            "progress": "进度",
+            "listName": "已分析歌曲",
+            "showButton": "显示",
+            "deleteButton": "删除",
+            "separateButton": "/ 音频分离 / ",
+            "firstButton": "/ 首页 /"
+        },
+        "helpBar": {
+            "title": "快捷键说明",
+            "leftButton": "向左移动2秒",
+            "rightButton": "向右移动2秒",
+            "backButton": "回到开始位置返回",
+            "spaceButton": "播放/暂停",
+            "sponsorSpan": "你的赞助，是我更新的动力！"
+        },
+        "aboutView": {
+            "title": "关于识音",
+            "description": "AI扒谱神器 - 免费音频音高分析工具",
+            "functionTitle": "功能介绍",
+            "techTitle": "技术特点",
+            "function1": "音高分析：精确检测音频中的音符和音高",
+            "function2": "音频分离：AI分离人声、鼓、低音等音轨",
+            "function3": "本地处理：保护隐私，无需上传到云端",
+            "function4": "免费使用：无需注册，无需付费",
+            "tech1": "基于Spotify Basic-Pitch技术",
+            "tech2": "使用Demucs进行音频分离",
+            "tech3": "支持多种音频格式",
+            "tech4": "高精度音符识别",
+            "instructionTitle": "使用说明",
+            "instruction1": "识音是一款专业的音频分析工具，采用先进的AI技术，为用户提供精准的音高分析和音频分离服务。 所有处理都在本地完成，确保您的音频文件隐私安全。",
+            "instruction2": "支持MP3、WAV等常见音频格式，操作简单，结果准确。无论是音乐学习、创作还是分析，识音都能为您提供专业的帮助。",
+            "contactTitle": "联系我们",
+            "contact": "如果您在使用过程中遇到任何问题，或有任何建议和反馈，欢迎联系我们。(kecsun@163.com) 我们会持续改进产品，为用户提供更好的服务体验。"
+        },
+        "separateView": {
+            "title": "AI本地音频分离",
+            "subtitle": "基于本地CPU运算实现人声与伴奏分离",
+            "feature1": "无需上传云端，100%本地处理",
+            "feature2": "7分钟音频约需40分钟处理时间",
+            "feature3": "处理期间请保持页面开启，取消任务刷新页面即可",
+            "feature4": "支持MP3/WAV格式，建议时长小于10分钟",
+            "uploadText": ["上传", "分析音频", "MP3 WAV"],
+            "fileFormat": "MP3 WAV",
+            "startAnalysis": "开始分析",
+            "separationResult": "分离结果",
+            "separationSubtitle": "点击下方按钮播放或下载音轨",
+            "modelDownloadTitle": "需要下载模型文件",
+            "modelDownloadDescription": "首次使用需要下载AI模型文件（约185MB），下载后将保存在浏览器缓存中，下次可直接使用。",
+            "cancel": "取消",
+            "startDownload": "开始下载",
+            "processingTitle": "正在处理音频文件",
+            "processingMessage": "请耐心等待，AI正在分离音频轨道",
+            "modelDownloading": "正在下载模型文件...",
+            "loadingAudio": "正在加载音频文件...",
+            "processingAudio": "正在处理音频文件...",
+            "modelDownloadComplete": "模型文件下载完成",
+            "modelLoadFailed": "模型加载失败",
+            "modelDownloadFailed": "模型文件下载失败",
+            "audioSeparationComplete": "音频分离完成",
+            "audioSeparationDescription": "可以在下方播放和下载分离后的音轨",
+            "processingResultFailed": "处理音频结果失败",
+            "workerInitFailed": "Worker初始化失败",
+            "workerInitFailedDescription": "请检查网络连接或刷新页面重试",
+            "workerReinitFailed": "Worker重新初始化失败",
+            "workerReinitFailedDescription": "请刷新页面重试",
+            "pleaseUploadAudio": "请先上传音频文件",
+            "pleaseSelectValidAudio": "请选择有效的音频文件",
+            "onlyAudioFilesAllowed": "只能上传音频文件",
+            "tracks": {
+                "drums": "鼓",
+                "bass": "低音",
+                "other": "其他乐器",
+                "vocals": "人声"
+            }
+        },
+        "waveformPlayer": {
+            "title": "音频波形",
+            "subtitle": "点击下方按钮播放或下载音轨",
+            "tracks": {
+                "drums": "鼓",
+                "bass": "低音",
+                "other": "其他乐器",
+                "vocals": "人声"
+            },
+            "playFailed": "播放失败",
+            "downloadComplete": "下载完成",
+            "downloadCompleteDescription": "所有音轨文件已开始下载",
+            "downloadFailed": "下载失败",
+            "cleaned": "已清理",
+            "cleanedDescription": "已清理当前运行结果，可以重新上传音频"
+        }
+    }
+}
