@@ -89,7 +89,7 @@
 
           <div class="mt-8 pt-8 border-t border-gray-200">
             <h2 class="text-xl font-semibold text-gray-900 mb-4">{{ $t('mainView.aboutView.contactTitle') }}</h2>
-            <p class="text-gray-700">{{ $t('mainView.aboutView.contact') }}</p>
+            <p class="text-gray-700">{{ $t('mainView.aboutView.contact') }} (kecsun@163.com)</p>
           </div>
         </div>
       </div>

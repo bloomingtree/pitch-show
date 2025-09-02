@@ -60,7 +60,7 @@
             "instruction1": "Music Note is a professional audio analysis tool that uses advanced AI technology to provide users with accurate pitch analysis and audio separation services. All processing is done locally to ensure the privacy and security of your audio files.",
             "instruction2": "Supports common audio formats such as MP3, WAV, etc. The operation is simple and the results are accurate. Whether it's music learning, creation, or analysis, Music Note can provide you with professional help.",
             "contactTitle": "Contact Us",
-            "contact": "If you encounter any problems during use, or have any suggestions and feedback, please feel free to contact us. (kecsun@163.com) We will continue to improve our products to provide users with a better service experience."
+            "contact": "If you encounter any problems during use, or have any suggestions and feedback, please feel free to contact us."
         },
         "separateView": {
             "title": "AI Local Audio Separation",
