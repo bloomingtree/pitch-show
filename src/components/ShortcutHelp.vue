@@ -19,10 +19,6 @@
           <div class="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">Spacebar</div>
           <p class="ml-2 text-sm text-gray-500 dark:text-gray-400">{{ $t('mainView.helpBar.spaceButton') }}</p>
         </div>
-        <div class="justify-center items-center mt-2 flex-1">
-          <img class="w-full h-60 object-contain rounded" src="/comeon.jpg" alt="赞助图片" />
-          <p class="ml-2 text-sm text-gray-600 dark:text-gray-400 font-bold">{{ $t('mainView.helpBar.sponsorSpan') }}</p>
-        </div>
       </div>
       <div class="absolute -bottom-16 left-1/3 h-16 w-1/3 group-hover:scale-y-0 group-hover:-bottom-8 transition-all delay-200">
         <div class="h-16 w-full bg-amber-200 transition w-16 rounded-b"></div>
