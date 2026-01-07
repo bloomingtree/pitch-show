@@ -56,40 +56,74 @@
     <!-- 快捷键说明选项栏 -->
     <ShortcutHelp />
     <!-- 音符显示区 -->
-    <div class="flex1 h-full" id="canvasDiv" style="transform: rotateX(180deg);">
-      <!-- <div v-for="(singleNote, index) in decodedNotes" :key="index" class="absolute bg-black transition-transform ease-linear" 
-        v-show="singleNote.x && (singleNote.y-playTime < 20 && singleNote.durationSeconds+singleNote.y+2 >= playTime)"
-        :style="'left: '+singleNote.x*100+'%; top: '+singleNote.y*magnification+'px; transform: translate(0, '+playTime*magnification*(-1)+'px); width: '+singleNote.width*100+'%; height: '+singleNote.height*magnification+'px;opacity: '+singleNote.amplitude+';transition-duration: 50ms;'">
-      </div> -->
-      <canvas id="note-canvas" width="300" height="300"></canvas>
+    <div class="flex1 h-full relative" id="canvasDiv" style="transform: rotateX(180deg);">
+      <canvas
+        id="note-canvas"
+        width="300"
+        height="300"
+        @mousemove="handleCanvasMouseMove"
+        @mouseleave="handleCanvasMouseLeave"
+        @click="handleCanvasClick">
+      </canvas>
+
+      <!-- 音符信息悬浮框 (Dev功能) -->
+      <transition name="tooltip">
+        <div
+          v-if="hoveredNote"
+          class="absolute z-30 bg-gray-900/95 text-white text-xs rounded-lg p-3 pointer-events-none max-w-xs"
+          :style="{ transform: 'rotateX(180deg)', left: tooltipX + 'px', top: tooltipY + 'px' }">
+          <div class="font-bold text-purple-300 mb-2">音符信息 (Dev)</div>
+          <div class="space-y-1">
+            <div><span class="text-gray-400">MIDI:</span> {{ hoveredNote.pitchMidi }}</div>
+            <div><span class="text-gray-400">起始时间:</span> {{ hoveredNote.startTimeSeconds.toFixed(3) }}s</div>
+            <div><span class="text-gray-400">持续时间:</span> {{ hoveredNote.durationSeconds.toFixed(3) }}s</div>
+            <div><span class="text-gray-400">音量:</span> {{ (hoveredNote.amplitude * 100).toFixed(1) }}%</div>
+            <div v-if="hoveredNote.isDynamic !== undefined">
+              <span class="text-gray-400">类型:</span>
+              <span :class="hoveredNote.isDynamic ? 'text-cyan-400' : 'text-gray-400'">
+                {{ hoveredNote.isDynamic ? '动态' : '平稳' }}
+              </span>
+            </div>
+            <div v-if="hoveredNote.pitchBends && hoveredNote.pitchBends.length > 0">
+              <span class="text-gray-400">弯音数:</span> {{ hoveredNote.pitchBends.length }}
+            </div>
+            <div v-if="hoveredNote.pitchBends && hoveredNote.pitchBends.length > 0" class="mt-2">
+              <div class="text-gray-400 mb-1">弯音数组:</div>
+              <div class="bg-gray-800 rounded px-2 py-1 text-xs font-mono break-all max-h-20 overflow-y-auto">
+                {{ formatPitchBendsArray(hoveredNote.pitchBends) }}
+              </div>
+            </div>
+            <div v-if="getPitchBendEndValue(hoveredNote) !== null" class="mt-1">
+              <span class="text-gray-400">弯音终值:</span>
+              <span class="text-yellow-400 font-mono">{{ getPitchBendEndValue(hoveredNote).toFixed(3) }}</span>
+            </div>
+          </div>
+        </div>
+      </transition>
     </div>
     <div class="w-full h-20 flex flex-row">
-      <div class="flex-1 h-full flex flex-row relative" v-for="(num, index) in octaveNum" :key="index">
-        <div class="key-white bg-black">
+      <div class="flex-1 h-full flex flex-row relative" v-for="(octave, octaveIndex) in octaveNum" :key="octaveIndex">
+        <!-- 白键 -->
+        <div
+          v-for="(scale, scaleIndex) in [0, 2, 4, 5, 7, 9, 11]"
+          :key="`white-${octaveIndex}-${scaleIndex}`"
+          class="key-white bg-black cursor-pointer hover:bg-gray-200 transition-colors"
+          @mousedown="playPianoNote(lowestPitch + octave * 12 + scale)">
           <div class="w-full h-full px-px bg-white bg-clip-content"></div>
         </div>
-        <div class="key-black bg-black absolute z-99 h-1/2" :style="'left: '+firstBlack+'%;'"></div>
-        <div class="key-white bg-black">
-          <div class="w-full h-full px-px bg-white bg-clip-content"></div>
-        </div>
-        <div class="key-black bg-black absolute z-99 h-1/2" :style="'left: '+secondBlack+'%;'"></div>
-        <div class="key-white bg-black">
-          <div class="w-full h-full px-px bg-white bg-clip-content"></div>
-        </div>
-        <div class="key-white bg-black">
-          <div class="w-full h-full px-px bg-white bg-clip-content"></div>
-        </div>
-        <div class="key-black bg-black absolute z-99 h-1/2" :style="'left: '+thirdBlack+'%;'"></div>
-        <div class="key-white bg-black">
-          <div class="w-full h-full px-px bg-white bg-clip-content"></div>
-        </div>
-        <div class="key-black bg-black absolute z-99 h-1/2" :style="'left: '+forthBlack+'%;'"></div>
-        <div class="key-white bg-black">
-          <div class="w-full h-full px-px bg-white bg-clip-content"></div>
-        </div>
-        <div class="key-black bg-black absolute z-99 h-1/2" :style="'left: '+fifthBlack+'%;'"></div>
-        <div class="key-white bg-black">
-          <div class="w-full h-full px-px bg-white bg-clip-content"></div>
+        <!-- 黑键 -->
+        <div
+          v-for="(blackScale, blackIndex) in [
+            { scale: 1, left: firstBlack },
+            { scale: 3, left: secondBlack },
+            { scale: 6, left: thirdBlack },
+            { scale: 8, left: forthBlack },
+            { scale: 10, left: fifthBlack }
+          ]"
+          :key="`black-${octaveIndex}-${blackIndex}`"
+          class="key-black bg-black absolute z-99 h-1/2 cursor-pointer hover:bg-gray-600 transition-colors"
+          :style="'left: '+blackScale.left+'%;'"
+          @mousedown="playPianoNote(lowestPitch + octave * 12 + blackScale.scale)">
         </div>
       </div>
     </div>
@@ -97,6 +131,23 @@
     <div>
       <audio-player ref="audioPlayer" @timeupdate="timeUpdate"></audio-player>
     </div>
+
+    <!-- 动态音符分析按钮 -->
+    <div class="absolute bottom-44 left-4 z-20">
+      <button
+        @click="showDynamicInfoDialog = !showDynamicInfoDialog"
+        class="bg-violet-500 w-14 h-14 text-white rounded-full shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
+        <MusicAnalysis class="w-8 h-8" />
+      </button>
+    </div>
+
+    <!-- 动态音符分析弹窗 -->
+    <DynamicInfoDialog
+      :show="showDynamicInfoDialog"
+      :stats="dynamicStats"
+      :current-scheme="colorScheme"
+      @close="showDynamicInfoDialog = false"
+      @update:currentScheme="updateColorScheme" />
      
   </div>
 </template>
@@ -107,6 +158,10 @@ import { BasicPitch, noteFramesToTime, addPitchBendsToNoteEvents, outputToNotesP
 import * as tf from '@tensorflow/tfjs';
 import songDB from '@/store/Song'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
+import SoundTagger from '@/js/SoundTagger.js'
+import DynamicInfoDialog from '@/components/DynamicInfoDialog.vue'
+import { MusicAnalysis } from '@/components/icons'
+
 export default {
   name: 'SongPitch',
   props: {
@@ -114,7 +169,9 @@ export default {
   },
   components: {
     AudioPlayer,
-    ShortcutHelp
+    ShortcutHelp,
+    DynamicInfoDialog,
+    MusicAnalysis
   },
   data() {
     return {
@@ -143,6 +200,29 @@ export default {
       isHovered: false, //用来提醒用户右上角可以hover上去展开
       findingLastNote: 0, //手动修改播放时间后，程序是否正在寻找最后一个已播放音符 0-未在查找 大于1-正在查找，且数字表示查找过程中被打断渲染的次数。如果次数太大说明程序出问题了，就强迫渲染
       noteCtx: null,
+      soundTagger: null, // 声音标签分析器
+      enableDynamicAnalysis: true, // 是否启用动态音符分析
+      dynamicStats: null, // 动态音符统计信息
+      showDynamicInfoDialog: false, // 是否显示动态音符信息弹窗
+      colorScheme: localStorage.getItem('colorScheme') || 'sunset', // 颜色方案
+      colorSchemes: { // 颜色方案配置
+        ocean: {
+          dynamic: '#0EA5E9',
+          stable: '#64748B'
+        },
+        sunset: {
+          dynamic: '#F472B6',
+          stable: '#F59E0B'
+        },
+        forest: {
+          dynamic: '#10B981',
+          stable: '#8B5CF6'
+        }
+      },
+      hoveredNote: null, // 当前悬停的音符
+      tooltipX: 0,
+      tooltipY: 0,
+      audioContext: null, // 音频上下文
     }
   },
   methods: {
@@ -216,10 +296,28 @@ export default {
       this.decodedNotes = notes.sort((a,b)=> {
         return (a.startTimeSeconds+a.durationSeconds) - (b.startTimeSeconds+b.durationSeconds)  //按照结束时间由前到后排序
       })
+      
+      
       this.amplitudeMag = 0 // 修改强度扩大倍数为默认值
       this.pastNoteIndex = 0
 
       this.changeNoteAmplitude()
+      
+      // 动态音符分析
+      if (this.enableDynamicAnalysis) {
+        this.processStr = '正在进行动态音符分析...'
+        try {
+          if (!this.soundTagger) {
+            this.soundTagger = new SoundTagger()
+          }
+          this.decodedNotes = this.analyzeDynamicNotes(this.decodedNotes)
+          this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
+          console.log('动态音符统计:', this.dynamicStats)
+        } catch (error) {
+          console.error('动态音符分析失败:', error)
+        }
+      }
+      
       this.processStr = ''
       songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
       this.getAnalysizedSongList()      
@@ -287,9 +385,288 @@ export default {
       }
     },
     drawNote(singleNote) {
-      this.noteCtx.fillStyle=`rgba(236, 44, 100,${singleNote.amplitude})`;
-      this.noteCtx.fillRect(singleNote.x * this.noteAreaWidth, (singleNote.y-this.playTime)*this.secondLength, 
-      singleNote.width * this.noteAreaWidth, singleNote.height*this.secondLength);
+      // 计算基于音量的透明度（音量越小越淡）
+      const minOpacity = 0.3;
+      const maxOpacity = 1.0;
+      const amplitude = singleNote.amplitude || 0.5;
+      const opacity = minOpacity + (maxOpacity - minOpacity) * Math.sqrt(amplitude);
+
+      // 获取当前颜色方案
+      const scheme = this.colorSchemes[this.colorScheme] || this.colorSchemes.sunset;
+
+      // 根据是否为动态音符选择颜色
+      let color;
+      if (singleNote.isDynamic) {
+        // 动态音符
+        const hex = scheme.dynamic.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        color = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      } else {
+        // 平稳音符
+        const hex = scheme.stable.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16);
+        const g = parseInt(hex.substring(2, 4), 16);
+        const b = parseInt(hex.substring(4, 6), 16);
+        color = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+      }
+
+      this.noteCtx.fillStyle = color;
+      this.noteCtx.fillRect(
+        singleNote.x * this.noteAreaWidth,
+        (singleNote.y - this.playTime) * this.secondLength,
+        singleNote.width * this.noteAreaWidth,
+        singleNote.height * this.secondLength
+      );
+    },
+    /**
+     * 分析动态音符
+     * @param {Array} notes - 音符数组
+     * @returns {Array} 添加了动态标记的音符数组
+     */
+    analyzeDynamicNotes(notes) {
+      return notes.map(note => {
+        let isDynamic = false;
+
+        // 检查是否有 pitchBends
+        if (note.pitchBends && note.pitchBends.length > 0) {
+          // 提取 pitchBend 值
+          const bends = note.pitchBends.map(b => {
+            if (typeof b === 'number') return b;
+            if (b && typeof b === 'object' && 'pitchBend' in b) return b.pitchBend;
+            return 0;
+          });
+
+          // 计算方差
+          const mean = bends.reduce((a, b) => a + b, 0) / bends.length;
+          const variance = bends.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / bends.length;
+
+          // 如果方差大于阈值，则为动态音符
+          // 阈值设为 0.05，这样可以捕捉到明显的音高变化
+          isDynamic = variance > 0.05;
+        }
+
+        return {
+          ...note,
+          isDynamic: isDynamic
+        };
+      });
+    },
+
+    /**
+     * 获取动态音符统计信息
+     */
+    getDynamicStatistics(notes) {
+      const stats = {
+        total: notes.length,
+        byType: {
+          dynamic: 0,
+          stable: 0
+        }
+      };
+
+      notes.forEach(note => {
+        if (note.isDynamic) {
+          stats.byType.dynamic++;
+        } else {
+          stats.byType.stable++;
+        }
+      });
+
+      return stats;
+    },
+
+    /**
+     * 更新颜色方案
+     */
+    updateColorScheme(scheme) {
+      this.colorScheme = scheme;
+      localStorage.setItem('colorScheme', scheme);
+      // 重新绘制音符
+      this.showNotes(false);
+    },
+
+    /**
+     * 初始化音频上下文
+     */
+    initAudioContext() {
+      if (!this.audioContext) {
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      // 恢复音频上下文（浏览器策略要求用户交互后才能播放）
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume();
+      }
+    },
+
+    /**
+     * 播放钢琴音符
+     * @param {Number} midiNote - MIDI音符编号
+     * @param {Number} duration - 持续时间（秒）
+     */
+    playPianoNote(midiNote, duration = 0.5) {
+      this.initAudioContext();
+
+      const ctx = this.audioContext;
+      const now = ctx.currentTime;
+
+      // MIDI转频率
+      const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+      // 创建主振荡器（三角波，模拟钢琴基音）
+      const mainOsc = ctx.createOscillator();
+      mainOsc.type = 'triangle';
+      mainOsc.frequency.setValueAtTime(frequency, now);
+
+      // 创建泛音振荡器1（正弦波，模拟泛音）
+      const harmonic1 = ctx.createOscillator();
+      harmonic1.type = 'sine';
+      harmonic1.frequency.setValueAtTime(frequency * 2, now);
+
+      // 创建泛音振荡器2（正弦波，模拟高频泛音）
+      const harmonic2 = ctx.createOscillator();
+      harmonic2.type = 'sine';
+      harmonic2.frequency.setValueAtTime(frequency * 3, now);
+
+      // 创建增益节点（控制音量包络）
+      const mainGain = ctx.createGain();
+      const harmonic1Gain = ctx.createGain();
+      const harmonic2Gain = ctx.createGain();
+
+      // 音量包络（ADSR）
+      const attackTime = 0.01; // 快速起音
+      const decayTime = 0.1;   // 衰减时间
+      const sustainLevel = 0.3; // 维持音量
+      const releaseTime = 0.3;  // 释音时间
+
+      // 主音量包络
+      mainGain.gain.setValueAtTime(0, now);
+      mainGain.gain.linearRampToValueAtTime(0.5, now + attackTime);
+      mainGain.gain.exponentialRampToValueAtTime(sustainLevel * 0.6, now + attackTime + decayTime);
+      mainGain.gain.exponentialRampToValueAtTime(0.01, now + duration + releaseTime);
+
+      // 泛音1包络（较弱）
+      harmonic1Gain.gain.setValueAtTime(0, now);
+      harmonic1Gain.gain.linearRampToValueAtTime(0.15, now + attackTime);
+      harmonic1Gain.gain.exponentialRampToValueAtTime(sustainLevel * 0.2, now + attackTime + decayTime);
+      harmonic1Gain.gain.exponentialRampToValueAtTime(0.01, now + duration + releaseTime);
+
+      // 泛音2包络（更弱）
+      harmonic2Gain.gain.setValueAtTime(0, now);
+      harmonic2Gain.gain.linearRampToValueAtTime(0.08, now + attackTime);
+      harmonic2Gain.gain.exponentialRampToValueAtTime(sustainLevel * 0.1, now + attackTime + decayTime);
+      harmonic2Gain.gain.exponentialRampToValueAtTime(0.01, now + duration + releaseTime);
+
+      // 连接节点
+      mainOsc.connect(mainGain);
+      harmonic1.connect(harmonic1Gain);
+      harmonic2.connect(harmonic2Gain);
+
+      mainGain.connect(ctx.destination);
+      harmonic1Gain.connect(ctx.destination);
+      harmonic2Gain.connect(ctx.destination);
+
+      // 播放和停止
+      mainOsc.start(now);
+      harmonic1.start(now);
+      harmonic2.start(now);
+
+      mainOsc.stop(now + duration + releaseTime);
+      harmonic1.stop(now + duration + releaseTime);
+      harmonic2.stop(now + duration + releaseTime);
+    },
+
+    /**
+     * 处理Canvas鼠标移动（显示音符信息）
+     */
+    handleCanvasMouseMove(event) {
+      const canvas = event.target;
+      const rect = canvas.getBoundingClientRect();
+
+      // 计算鼠标在Canvas中的位置（注意transform: rotateX(180deg)）
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+
+      // 反转Y坐标（因为Canvas被旋转了）
+      const actualY = this.noteAreaHeight - y;
+
+      // 查找鼠标位置下的音符
+      const foundNote = this.findNoteAtPosition(x, actualY);
+
+      if (foundNote) {
+        this.hoveredNote = foundNote;
+        // 计算tooltip位置 - 使用actualY让tooltip跟随视觉位置
+        this.tooltipX = x + 15;
+        this.tooltipY = actualY - 10;
+      } else {
+        this.hoveredNote = null;
+      }
+    },
+
+    /**
+     * 处理Canvas鼠标离开
+     */
+    handleCanvasMouseLeave() {
+      this.hoveredNote = null;
+    },
+
+    /**
+     * 处理Canvas点击（播放音符）
+     */
+    handleCanvasClick(event) {
+      if (!this.hoveredNote) return;
+
+      // 播放音符
+      this.playPianoNote(this.hoveredNote.pitchMidi, this.hoveredNote.durationSeconds || 0.5);
+    },
+
+    /**
+     * 查找指定位置的音符
+     */
+    findNoteAtPosition(x, y) {
+      // 遍历当前显示的音符
+      for (let i = this.lastPastNoteIndex; i < this.decodedNotes.length; i++) {
+        const note = this.decodedNotes[i];
+
+        // 计算音符在Canvas中的位置
+        const noteX = note.x * this.noteAreaWidth;
+        const noteY = (note.y - this.playTime) * this.secondLength;
+        const noteWidth = note.width * this.noteAreaWidth;
+        const noteHeight = note.height * this.secondLength;
+
+        // 检查鼠标是否在音符范围内
+        if (x >= noteX && x <= noteX + noteWidth &&
+            y >= noteY && y <= noteY + noteHeight) {
+          return note;
+        }
+
+        // 如果音符还没显示到屏幕上，停止查找
+        if (note.y - this.playTime > this.showingSecond) {
+          break;
+        }
+      }
+
+      return null;
+    },
+
+    /**
+     * 格式化弯音数组用于显示
+     */
+    formatPitchBendsArray(pitchBends) {
+      return pitchBends.map(bend => {
+        const value = typeof bend === 'number' ? bend : bend.pitchBend || 0;
+        return value.toFixed(3);
+      }).join(', ');
+    },
+
+    /**
+     * 获取弯音数组的最后一个值
+     */
+    getPitchBendEndValue(note) {
+      if (!note.pitchBends || note.pitchBends.length === 0) return null;
+      const lastBend = note.pitchBends[note.pitchBends.length - 1];
+      return typeof lastBend === 'number' ? lastBend : lastBend.pitchBend || null;
     },
     findLastPlayNote() {
       //二分查找，找到this.decodeNotes数组中第一个endTime大于this.playTime的下标
@@ -359,6 +736,20 @@ export default {
       this.decodedNotes = JSON.parse(song.notesStr)
       this.amplitudeMag = 1 //选择已解析的歌曲，无需再进行强度放大
       this.pastNoteIndex = 0
+      
+      // 如果启用动态音符分析且音符还没有标记，则进行分析
+      if (this.enableDynamicAnalysis && this.decodedNotes.length > 0 && this.decodedNotes[0].isDynamic === undefined) {
+        try {
+          this.decodedNotes = this.analyzeDynamicNotes(this.decodedNotes)
+          this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
+        } catch (error) {
+          console.error('动态音符分析失败:', error)
+        }
+      } else if (this.decodedNotes.length > 0 && this.decodedNotes[0].isDynamic !== undefined) {
+        // 如果已有标记，更新统计信息
+        this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
+      }
+      
       this.showNotes()
     },
     deleteSong(songName, index) {
@@ -393,10 +784,18 @@ export default {
       noteCanvas.width = this.noteAreaWidth
       noteCanvas.height = this.noteAreaHeight
       this.secondLength = this.noteAreaHeight/this.showingSecond
+      
+      // 重新初始化渲染器（如果已存在）
+      if (this.canvasRenderer) {
+        this.initCanvasRenderer();
+      }
     }
   },
   mounted() {
     this.getAnalysizedSongList()
+    
+    // 初始化声音标签分析器
+    this.soundTagger = new SoundTagger()
     
     // 使用 nextTick 确保 DOM 完全渲染后再设置 canvas
     this.$nextTick(() => {
@@ -451,5 +850,38 @@ a {
 .hover-state {
   top: 0 !important;
   z-index: 20 !important;
+}
+
+/* 弹窗过渡动画 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.fade-enter-active .relative,
+.fade-leave-active .relative {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.fade-enter-from .relative,
+.fade-leave-to .relative {
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+/* Tooltip过渡动画 */
+.tooltip-enter-active,
+.tooltip-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.tooltip-enter-from,
+.tooltip-leave-to {
+  opacity: 0;
 }
 </style>
