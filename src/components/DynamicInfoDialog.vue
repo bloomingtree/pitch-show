@@ -12,15 +12,15 @@
         class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 overflow-hidden transform transition-all"
         @click.stop>
         <!-- 标题栏 -->
-        <div class="bg-gradient-to-r from-violet-500 to-purple-600 px-6 py-4">
+        <div class="bg-gradient-to-r from-amber-300 to-amber-500 px-6 py-4">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                <MusicNoteIcon class="w-6 h-6 text-white" />
+                <MusicNoteIcon class="w-6 h-6 text-black" />
               </div>
               <div>
-                <h2 class="text-xl font-bold text-white">动态音符分析</h2>
-                <p class="text-xs text-white/80 mt-0.5">Dynamic Note Analysis</p>
+                <h2 class="text-xl font-bold text-stone-600">动态音符分析</h2>
+                <p class="text-xs text-black/80 mt-0.5">Dynamic Note Analysis</p>
               </div>
             </div>
             <button
@@ -34,9 +34,9 @@
         <!-- 内容区域 -->
         <div class="px-6 py-5">
           <!-- 功能说明 -->
-          <div class="mb-5 p-4 bg-gradient-to-br from-violet-50 to-purple-50 rounded-xl border border-violet-100">
+          <div class="mb-5 p-4 bg-gradient-to-br from-orange-50 to-amber-50 rounded-xl border border-orange-100">
             <p class="text-sm text-gray-700 leading-relaxed">
-              <span class="font-semibold text-violet-700">动态音符</span> 指音高有明显变化的音符，
+              <span class="font-semibold text-orange-700">动态音符</span> 指音高有明显变化的音符，
               如人声的颤音、吉他的揉弦等技巧。这些音符通过音高变化展现音乐的表现力。
             </p>
           </div>
@@ -44,7 +44,7 @@
           <!-- 颜色方案选择 -->
           <div class="mb-5">
             <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <PaletteIcon class="w-4 h-4 text-violet-500" />
+              <PaletteIcon class="w-4 h-4 text-orange-500" />
               颜色主题
             </h3>
             <div class="grid grid-cols-3 gap-2">
@@ -55,8 +55,8 @@
                 :class="[
                   'relative p-3 rounded-lg border-2 transition-all',
                   currentScheme === key
-                    ? 'border-violet-500 shadow-md scale-105'
-                    : 'border-gray-200 hover:border-violet-300'
+                    ? 'border-orange-500 shadow-md scale-105'
+                    : 'border-gray-200 hover:border-orange-300'
                 ]">
                 <div class="flex gap-1 mb-2">
                   <div
@@ -71,7 +71,7 @@
                 <div class="text-xs font-semibold text-gray-800">{{ scheme.name }}</div>
                 <div
                   v-if="currentScheme === key"
-                  class="absolute -top-1 -right-1 w-4 h-4 bg-violet-500 rounded-full flex items-center justify-center">
+                  class="absolute -top-1 -right-1 w-4 h-4 bg-orange-500 rounded-full flex items-center justify-center">
                   <CheckIcon class="w-3 h-3 text-white" />
                 </div>
               </button>
@@ -81,7 +81,7 @@
           <!-- 当前颜色说明 -->
           <div class="mb-5">
             <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <InfoIcon class="w-4 h-4 text-violet-500" />
+              <InfoIcon class="w-4 h-4 text-orange-500" />
               颜色说明
             </h3>
             <div class="grid grid-cols-2 gap-3">
@@ -111,17 +111,17 @@
           <!-- 统计信息 -->
           <div v-if="stats" class="border-t border-gray-100 pt-4">
             <h3 class="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <ChartIcon class="w-4 h-4 text-violet-500" />
+              <ChartIcon class="w-4 h-4 text-orange-500" />
               分析统计
             </h3>
             <div class="grid grid-cols-2 gap-3 text-sm">
-              <div class="bg-violet-50 rounded-lg p-3">
+              <div class="bg-orange-50 rounded-lg p-3">
                 <div class="text-xs text-gray-600 mb-1">总音符数</div>
-                <div class="text-xl font-bold text-violet-600">{{ stats.total }}</div>
+                <div class="text-xl font-bold text-orange-600">{{ stats.total }}</div>
               </div>
-              <div class="bg-violet-50 rounded-lg p-3">
+              <div class="bg-orange-50 rounded-lg p-3">
                 <div class="text-xs text-gray-600 mb-1">动态音符占比</div>
-                <div class="text-xl font-bold text-violet-600">
+                <div class="text-xl font-bold text-orange-600">
                   {{ stats.byType.dynamic ? ((stats.byType.dynamic / stats.total) * 100).toFixed(1) : '0.0' }}%
                 </div>
               </div>
@@ -133,7 +133,7 @@
         </div>
 
         <!-- 底部装饰 -->
-        <div class="h-1 bg-gradient-to-r from-violet-500 via-purple-500 to-pink-500"></div>
+        <div class="h-1 bg-gradient-to-r from-orange-500 via-amber-500 to-yellow-500"></div>
       </div>
     </div>
   </transition>

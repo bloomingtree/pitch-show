@@ -69,7 +69,7 @@
       <!-- 音符信息悬浮框 (Dev功能) -->
       <transition name="tooltip">
         <div
-          v-if="hoveredNote"
+          v-if="false && hoveredNote"
           class="absolute z-30 bg-gray-900/95 text-white text-xs rounded-lg p-3 pointer-events-none max-w-xs"
           :style="{ transform: 'rotateX(180deg)', left: tooltipX + 'px', top: tooltipY + 'px' }">
           <div class="font-bold text-purple-300 mb-2">音符信息 (Dev)</div>
@@ -108,7 +108,7 @@
           v-for="(scale, scaleIndex) in [0, 2, 4, 5, 7, 9, 11]"
           :key="`white-${octaveIndex}-${scaleIndex}`"
           class="key-white bg-black cursor-pointer hover:bg-gray-200 transition-colors"
-          @mousedown="playPianoNote(lowestPitch + octave * 12 + scale)">
+          @mousedown="playPianoNote(lowestPitch + octave * 12 + scale - 12)">
           <div class="w-full h-full px-px bg-white bg-clip-content"></div>
         </div>
         <!-- 黑键 -->
@@ -123,7 +123,7 @@
           :key="`black-${octaveIndex}-${blackIndex}`"
           class="key-black bg-black absolute z-99 h-1/2 cursor-pointer hover:bg-gray-600 transition-colors"
           :style="'left: '+blackScale.left+'%;'"
-          @mousedown="playPianoNote(lowestPitch + octave * 12 + blackScale.scale)">
+          @mousedown="playPianoNote(lowestPitch + octave * 12 + blackScale.scale - 12)">
         </div>
       </div>
     </div>
@@ -136,8 +136,8 @@
     <div class="absolute bottom-44 left-4 z-20">
       <button
         @click="showDynamicInfoDialog = !showDynamicInfoDialog"
-        class="bg-violet-500 w-14 h-14 text-white rounded-full shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
-        <MusicAnalysis class="w-8 h-8" />
+        class="bg-orange-300 w-14 h-14 text-white rounded-full shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
+        <MusicNote class="w-8 h-8 text-stone-600" />
       </button>
     </div>
 
@@ -160,7 +160,7 @@ import songDB from '@/store/Song'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import SoundTagger from '@/js/SoundTagger.js'
 import DynamicInfoDialog from '@/components/DynamicInfoDialog.vue'
-import { MusicAnalysis } from '@/components/icons'
+import { MusicAnalysis, MusicNote } from '@/components/icons'
 
 export default {
   name: 'SongPitch',
@@ -171,7 +171,8 @@ export default {
     AudioPlayer,
     ShortcutHelp,
     DynamicInfoDialog,
-    MusicAnalysis
+    MusicAnalysis,
+    MusicNote
   },
   data() {
     return {
