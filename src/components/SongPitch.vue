@@ -17,11 +17,11 @@
         </label>
       </div> 
       <div class="my-1"><p class="text-sm text-gray-600 dark:text-gray-400">{{songFile !== null ? songFile.name : ''}}</p></div>
-      <div class="mt-3 flex flex-col items-center justify-center">
+      <div class="mt-3 flex items-center justify-center gap-2">
         <button
-        class="px-5 py-1 rounded shadow-lg hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100" 
+        class="px-5 py-1 rounded shadow-lg hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100"
         @click="startAnanlyze" :disabled="songFile === null">{{ $t('mainView.listBar.analyzeButton') }}</button>
-        <div v-show="processStr !== ''">{{ $t('mainView.listBar.progress') }}:{{ processStr }}</div>
+        <span v-show="processStr !== ''" class="text-xs text-gray-600">{{ processStr }}</span>
       </div>
       <div class="h-48 mt-4 bg-amber-100 flex flex-col z-20">
         <div class="text-left bg-white">
@@ -136,7 +136,7 @@
     <div class="absolute bottom-44 left-4 z-20">
       <button
         @click="showDynamicInfoDialog = !showDynamicInfoDialog"
-        class="bg-orange-300 w-14 h-14 text-white rounded-full shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
+        class="bg-orange-300 w-14 h-14 text-white rounded-full border-[3.5px] border-[#6e6e96]  shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
         <MusicNote class="w-8 h-8 text-stone-600" />
       </button>
     </div>

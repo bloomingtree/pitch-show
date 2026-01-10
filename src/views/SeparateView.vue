@@ -66,16 +66,16 @@
               </svg>
             </div>
             <div class="ml-3">
-              <h3 class="text-lg font-medium text-gray-900">{{ $t('mainView.separateView.modelDownloadTitle') }}</h3>
+              <h3 class="text-lg font-medium text-gray-900">{{ downloadFailed ? $t('mainView.separateView.modelDownloadFailed') : $t('mainView.separateView.modelDownloadTitle') }}</h3>
             </div>
           </div>
-          
+
           <div class="mb-6">
             <p class="text-sm text-gray-600">
-              {{ $t('mainView.separateView.modelDownloadDescription') }}
+              {{ downloadFailed ? $t('mainView.separateView.modelDownloadFailed') + '，' + $t('mainView.separateView.modelDownloadDescription') : $t('mainView.separateView.modelDownloadDescription') }}
             </p>
           </div>
-          
+
           <div class="flex justify-end space-x-3">
             <button
               @click="hideDownloadConfirm"
@@ -87,17 +87,17 @@
               @click="downloadModelFile"
               class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              {{ $t('mainView.separateView.startDownload') }}
+              {{ downloadFailed ? $t('mainView.separateView.retryDownload') : $t('mainView.separateView.startDownload') }}
             </button>
           </div>
         </div>
       </div>
 
       <!-- 自定义进度通知组件 -->
-      <CustomProgressNotification 
+      <CustomProgressNotification
         v-if="showProgressDialog"
-        :title="$t('mainView.separateView.processingTitle')"
-        :message="$t('mainView.separateView.processingMessage')"
+        :title="isDownloadingModel ? $t('mainView.separateView.downloadingModelTitle') : (isExtractingModel ? $t('mainView.separateView.downloadingModelTitle') : $t('mainView.separateView.processingTitle'))"
+        :message="isDownloadingModel ? $t('mainView.separateView.modelDownloading') : (isExtractingModel ? $t('mainView.separateView.extractingModel') : $t('mainView.separateView.processingMessage'))"
         :progress="downloadProgress"
         :progressMessage="progressMessage"
         :currentTime="progressCurrentTime"
@@ -113,6 +113,7 @@ import demucsUtils from '../js/demucsUtils.js'
 import CustomProgressNotification from '../components/CustomProgressNotification.vue'
 import AudioWaveformPlayer from '../components/AudioWaveformPlayer.vue'
 import DemucsWorker from '../js/demucs-worker.js?worker'
+import { gunzipSync } from 'fflate'
 export default {
   name: 'SeparateView',
   components: {
@@ -143,7 +144,13 @@ export default {
       progressMessage: '',
       progressCurrentTime: '0:00',
       progressTotalTime: '0:00',
-      modelPath: 'https://nr9uwdeyhrffuqbu.public.blob.vercel-storage.com/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx'
+      modelPath: '/shiyin_downloads/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx.gz',
+      uncompressedModelPath: '/shiyin_downloads/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx',
+      isDownloadingModel: false,
+      isExtractingModel: false,
+      downloadStartTime: null,
+      downloadElapsedTime: 0,
+      downloadFailed: false
     }
   },
   computed: {
@@ -224,9 +231,9 @@ export default {
     // 检查模型文件是否存在
     async checkModelFile() {
       try {
-        // 首先检查缓存
+        // 首先检查缓存（检查解压后的模型）
         const cache = await caches.open('model-cache');
-        const cachedResponse = await cache.match(this.modelPath);
+        const cachedResponse = await cache.match(this.uncompressedModelPath);
         if (cachedResponse) {
           return true;
         } else {
@@ -234,6 +241,21 @@ export default {
         }
       } catch (error) {
         console.error('检查模型文件失败:', error);
+        return false;
+      }
+    },
+
+    // 删除模型缓存
+    async clearModelCache() {
+      try {
+        const cache = await caches.open('model-cache');
+        // 删除压缩和解压后的模型缓存
+        await cache.delete(this.modelPath);
+        await cache.delete(this.uncompressedModelPath);
+        console.log('模型缓存已清除');
+        return true;
+      } catch (error) {
+        console.error('清除模型缓存失败:', error);
         return false;
       }
     },
@@ -246,6 +268,7 @@ export default {
     // 隐藏下载确认对话框
     hideDownloadConfirm() {
       this.showDownloadDialog = false;
+      this.downloadFailed = false;
     },
 
     // 下载模型文件
@@ -253,69 +276,143 @@ export default {
       this.hideDownloadConfirm();
       this.showProgressDialog = true;
       this.downloadProgress = 0;
+      this.isDownloadingModel = true;
+      this.isExtractingModel = false;
       this.progressMessage = this.$t('mainView.separateView.modelDownloading');
       this.progressCurrentTime = '0:00';
       this.progressTotalTime = '0:00';
-      
+      this.downloadStartTime = Date.now();
+
+      // 启动时间更新计时器
+      const timeUpdateInterval = setInterval(() => {
+        if (this.isDownloadingModel) {
+          this.downloadElapsedTime = Math.floor((Date.now() - this.downloadStartTime) / 1000);
+          this.progressCurrentTime = this.formatTime(this.downloadElapsedTime);
+        } else {
+          clearInterval(timeUpdateInterval);
+        }
+      }, 1000);
+
       try {
         const response = await fetch(this.modelPath);
         if (!response.ok) {
           throw new Error(this.$t('mainView.separateView.modelDownloadFailed'));
         }
-        const total = 186*1024*1024;
+        // 尝试从响应头获取实际文件大小，否则使用估计值
+        const contentLength = response.headers.get('Content-Length');
+        const total = contentLength ? parseInt(contentLength) : 97*1024*1024;
         const reader = response.body.getReader();
         const chunks = [];
 
         while (true) {
           const { done, value } = await reader.read();
-          
+
           if (done) break;
-          
+
           chunks.push(value);
-          
+
           // 计算下载进度
           const downloaded = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
           this.downloadProgress = total ? (downloaded / total) * 100 : 0;
+
+          // 更新进度消息，显示已下载量和总量
+          this.progressMessage = `${this.$t('mainView.separateView.modelDownloading')} ${this.formatBytes(downloaded)} / ${this.formatBytes(total)}`;
         }
 
-        // 保存到缓存
-        const blob = new Blob(chunks);
+        // 下载完成，开始解压
+        this.isDownloadingModel = false;
+        this.isExtractingModel = true;
+        this.downloadProgress = 0;
+        this.progressMessage = this.$t('mainView.separateView.extractingModel');
+
+        // 合并所有chunks
+        const compressedData = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+        let offset = 0;
+        for (const chunk of chunks) {
+          compressedData.set(new Uint8Array(chunk), offset);
+          offset += chunk.length;
+        }
+
+        // 使用 setTimeout 让 UI 有机会更新
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // 解压模型文件
+        let decompressedData;
+        try {
+          decompressedData = gunzipSync(compressedData);
+        } catch (decompressError) {
+          console.error('解压模型文件失败:', decompressError);
+          throw new Error('模型文件解压失败，文件可能已损坏');
+        }
+
+        // 解压完成
+        this.downloadProgress = 100;
+
+        // 保存解压后的模型到缓存
+        const blob = new Blob([decompressedData]);
         const cache = await caches.open('model-cache');
-        await cache.put(this.modelPath, new Response(blob, {
+        await cache.put(this.uncompressedModelPath, new Response(blob, {
           headers: {
             'Content-Type': 'application/octet-stream'
           }
         }));
 
+        // 清理计时器
+        clearInterval(timeUpdateInterval);
+
         // 隐藏进度对话框
         this.showProgressDialog = false;
+        this.isDownloadingModel = false;
+        this.isExtractingModel = false;
 
         push.success({
-          title: this.$t('mainView.separateView.modelDownloadComplete'),
+          title: this.$t('mainView.separateView.extractingModelComplete'),
           duration: 3000,
         });
 
         // 重新加载模型并继续分析流程
+        // 注意：initializeModel 内部已经处理了错误情况，包括清除缓存和显示重试对话框
         try {
           await this.initializeModel();
+          // 只有模型加载成功才继续分析
           this.continueAnalysis();
         } catch (error) {
-          console.error('模型加载失败:', error);
-          push.error({
-            title: this.$t('mainView.separateView.modelLoadFailed'),
-            description: error.message,
-            duration: 5000,
-          });
+          // 错误已在 handleModelLoadError 中处理，这里不需要再做任何事
+          console.log('模型加载失败，已提示用户重新下载');
         }
       } catch (error) {
         console.error('下载模型文件失败:', error);
+        clearInterval(timeUpdateInterval);
         this.showProgressDialog = false;
+        this.isDownloadingModel = false;
+        this.isExtractingModel = false;
+        this.downloadFailed = true;
+
+        // 显示重试对话框
+        this.showDownloadConfirm();
+
         push.error({
           title: this.$t('mainView.separateView.modelDownloadFailed'),
           description: error.message,
           duration: 5000,
         });
       }
+    },
+
+    // 格式化时间显示
+    formatTime(seconds) {
+      const minutes = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${minutes}:${secs.toString().padStart(2, '0')}`;
+    },
+
+    // 格式化字节显示
+    formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     },
 
     // 继续分析流程
@@ -351,19 +448,40 @@ export default {
                 resolve();
               } else if (status === 'error') {
                 console.error('模型加载失败:', error);
+                // 模型加载失败，清除缓存并提示重新下载
+                this.handleModelLoadError(error);
                 reject(new Error(error));
               }
             }
           };
-          
+
           that.worker.addEventListener('message', messageHandler);
           that.worker.postMessage({
             command: 'loadModel',
-            data: { modelPath: that.modelPath },
+            data: { modelPath: that.uncompressedModelPath },
             id: 'load-model-1'
           });
         });
       }
+    },
+
+    // 处理模型加载错误
+    async handleModelLoadError(error) {
+      // 清除损坏的模型缓存
+      await this.clearModelCache();
+
+      // 设置下载失败状态，这样对话框会显示重试按钮
+      this.downloadFailed = true;
+
+      // 显示下载对话框让用户重新下载
+      this.showDownloadConfirm();
+
+      // 显示错误提示
+      push.error({
+        title: this.$t('mainView.separateView.modelLoadFailedClearCache'),
+        description: error,
+        duration: 5000,
+      });
     },
 
     // 处理音频分离结果
