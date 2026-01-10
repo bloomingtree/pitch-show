@@ -3,10 +3,8 @@
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="bg-white rounded-lg shadow-lg p-8">
         <div class="text-center mb-8">
-          <div class="w-16 h-16 bg-gradient-to-r from-amber-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.369 4.369 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
-            </svg>
+          <div class="w-16 h-16 flex items-center justify-center mx-auto mb-4">
+            <img src="/icon-192.png" alt="Logo" class="w-16 h-16 object-contain">
           </div>
           <h1 class="text-3xl font-bold text-gray-900 mb-2">{{ $t('mainView.aboutView.title') }}</h1>
           <p class="text-lg text-gray-600">{{ $t('mainView.aboutView.description') }}</p>

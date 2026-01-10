@@ -21,7 +21,7 @@
         "main": "Pitch Analysis",
         "separate": "Audio Separation",
         "about": "About",
-        "name": "Music Note",
+        "name": "Know Note",
         "nameDescription": "AI Music Note"
     },
     "mainView": {

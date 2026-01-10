@@ -5,10 +5,8 @@
         <!-- Logo和品牌名称 -->
         <div class="flex items-center mr-8">
           <div class="flex items-center space-x-2">
-            <div class="w-8 h-8 bg-gradient-to-r from-amber-500 to-red-600 rounded-lg flex items-center justify-center">
-              <svg class="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.369 4.369 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
-              </svg>
+            <div class="w-8 h-8 flex items-center justify-center">
+              <img src="/icon-192.png" alt="Logo" class="w-8 h-8 object-contain">
             </div>
             <span class="text-xl font-bold text-gray-800">{{ $t('navigationBar.name') }}</span>
             <span class="text-sm text-gray-500">{{ $t('navigationBar.nameDescription') }}</span>
