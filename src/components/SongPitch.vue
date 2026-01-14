@@ -212,8 +212,8 @@ export default {
           stable: '#64748B'
         },
         sunset: {
-          dynamic: '#F472B6',
-          stable: '#F59E0B'
+          dynamic: '#FF6B35',
+          stable: '#F472B6'
         },
         forest: {
           dynamic: '#10B981',
@@ -387,10 +387,10 @@ export default {
     },
     drawNote(singleNote) {
       // 计算基于音量的透明度（音量越小越淡）
-      const minOpacity = 0.3;
+      const minOpacity = 0.2;
       const maxOpacity = 1.0;
       const amplitude = singleNote.amplitude || 0.5;
-      const opacity = minOpacity + (maxOpacity - minOpacity) * Math.sqrt(amplitude);
+      const opacity = minOpacity + (maxOpacity - minOpacity) * amplitude;
 
       // 获取当前颜色方案
       const scheme = this.colorSchemes[this.colorScheme] || this.colorSchemes.sunset;

@@ -184,10 +184,10 @@ export default {
         },
         sunset: {
           name: '落日余晖',
-          dynamic: '#F472B6',
-          dynamicEnd: '#EC4899',
-          stable: '#F59E0B',
-          stableEnd: '#D97706'
+          dynamic: '#FF6B35',
+          dynamicEnd: '#E85D2A',
+          stable: '#F472B6',
+          stableEnd: '#EC4899'
         },
         forest: {
           name: '森林秘境',
