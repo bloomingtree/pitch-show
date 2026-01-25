@@ -3,8 +3,11 @@ import MainView from '../views/MainView.vue'
 import InfoView from '../views/InfoView.vue'
 import RegisterView from '@/views/auth/RegisterView.vue';
 import LoginView from '@/views/auth/LoginView.vue';
+import EmailLoginView from '@/views/auth/EmailLoginView.vue';
 import SeparateView from '@/views/SeparateView.vue';
 import TestView from '@/views/TestView.vue';
+import ProfileView from '@/views/user/ProfileView.vue';
+import { setupRouterGuard } from './guards'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -43,7 +46,28 @@ const router = createRouter({
     //   path: '/login',
     //   name: 'Login',
     //   component: LoginView
-    },    {
+    },
+    {
+      path: '/auth/login',
+      name: 'login',
+      component: EmailLoginView,
+      meta: {
+        title: '登录 - 识音',
+        description: '使用邮箱验证码登录识音',
+        guest: true
+      }
+    },
+    {
+      path: '/user/profile',
+      name: 'userProfile',
+      component: ProfileView,
+      meta: {
+        title: '个人资料 - 识音',
+        description: '管理您的个人资料',
+        requiresAuth: true
+      }
+    },
+    {
       path: '/separate',
       name: 'Separate',
       component: SeparateView,
@@ -59,6 +83,9 @@ const router = createRouter({
     // }
   ]
 })
+
+// 应用路由守卫
+setupRouterGuard(router)
 
 // Update meta tags on route change
 router.afterEach((to) => {
@@ -85,9 +112,9 @@ router.afterEach((to) => {
 
 // Helper function to update meta tags
 function updateMetaTag(name, content) {
-  let meta = document.querySelector(`meta[name="${name}"]`) || 
+  let meta = document.querySelector(`meta[name="${name}"]`) ||
              document.querySelector(`meta[property="${name}"]`)
-  
+
   if (meta) {
     meta.setAttribute('content', content)
   } else {

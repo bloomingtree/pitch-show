@@ -15,8 +15,8 @@
 
         <!-- 导航链接 -->
         <div class="hidden md:flex items-center space-x-8 flex-1">
-          <router-link 
-            to="/" 
+          <router-link
+            to="/"
             class="nav-link"
             :class="{ 'active': $route.name === 'info' }"
           >
@@ -25,9 +25,9 @@
             </svg>
             {{ $t('navigationBar.first') }}
           </router-link>
-          
-          <router-link 
-            to="/main" 
+
+          <router-link
+            to="/main"
             class="nav-link"
             :class="{ 'active': $route.name === 'main' }"
           >
@@ -36,9 +36,9 @@
             </svg>
             {{ $t('navigationBar.main') }}
           </router-link>
-          
-          <router-link 
-            to="/separate" 
+
+          <router-link
+            to="/separate"
             class="nav-link"
             :class="{ 'active': $route.name === 'Separate' }"
           >
@@ -47,9 +47,9 @@
             </svg>
             {{ $t('navigationBar.separate') }}
           </router-link>
-          
-          <router-link 
-            to="/about" 
+
+          <router-link
+            to="/about"
             class="nav-link"
             :class="{ 'active': $route.name === 'about' }"
           >
@@ -59,18 +59,68 @@
             {{ $t('navigationBar.about') }}
           </router-link>
         </div>
+
         <!-- 语言切换 -->
-        <div class="flex items-center  cursor-pointer">
-          
+        <div class="flex items-center mr-4 cursor-pointer">
           <select class="nav-link" v-model="language" @change="changeLanguage">
             <option value="en" class="text-gray-600 px-2 py-2">English</option>
             <option value="zh" class="text-gray-600">中文</option>
             <option v-show="false" value="Language">Language</option>
           </select>
         </div>
+
+        <!-- 用户菜单区域 -->
+        <div class="flex items-center">
+          <!-- 未登录状态 -->
+          <!-- <div v-if="!isAuthenticated" class="flex items-center">
+            <router-link
+              to="/auth/login"
+              class="px-4 py-2 bg-gradient-to-r from-[#fca269] to-[#fcd34d] text-gray-800 rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all"
+            >
+              登录
+            </router-link>
+          </div> -->
+
+          <!-- 已登录状态 -->
+          <div v-if="isAuthenticated" class="relative">
+            <button
+              @click="toggleUserMenu"
+              class="flex items-center space-x-2 px-3 py-2 rounded-2xl hover:bg-gray-100 transition-colors"
+            >
+              <div class="w-8 h-8 bg-gradient-to-br from-[#6dd9d1] to-[#fca269] rounded-full flex items-center justify-center">
+                <span class="text-white text-sm font-bold">{{ userName.charAt(0) }}</span>
+              </div>
+              <span class="text-gray-700 font-medium">{{ userName }}</span>
+            </button>
+
+            <!-- 下拉菜单 -->
+            <div v-if="showUserMenu" class="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl py-2 z-50">
+              <router-link
+                to="/user/profile"
+                class="flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100"
+                @click="showUserMenu = false"
+              >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                </svg>
+                个人资料
+              </router-link>
+              <button
+                @click="handleLogout"
+                class="w-full flex items-center px-4 py-2 text-red-600 hover:bg-red-50"
+              >
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+                退出登录
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- 移动端菜单按钮 -->
         <div class="md:hidden flex items-center ml-auto">
-          <button 
+          <button
             @click="toggleMobileMenu"
             class="text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700"
           >
@@ -84,8 +134,8 @@
       <!-- 移动端菜单 -->
       <div v-show="mobileMenuOpen" class="md:hidden">
         <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3 border-t border-gray-200">
-          <router-link 
-            to="/" 
+          <router-link
+            to="/"
             class="mobile-nav-link"
             :class="{ 'active': $route.name === 'info' }"
             @click="closeMobileMenu"
@@ -95,9 +145,9 @@
             </svg>
             {{ $t('navigationBar.first') }}
           </router-link>
-          
-          <router-link 
-            to="/main" 
+
+          <router-link
+            to="/main"
             class="mobile-nav-link"
             :class="{ 'active': $route.name === 'main' }"
             @click="closeMobileMenu"
@@ -107,9 +157,9 @@
             </svg>
             {{ $t('navigationBar.main') }}
           </router-link>
-          
-          <router-link 
-            to="/separate" 
+
+          <router-link
+            to="/separate"
             class="mobile-nav-link"
             :class="{ 'active': $route.name === 'Separate' }"
             @click="closeMobileMenu"
@@ -119,9 +169,9 @@
             </svg>
             {{ $t('navigationBar.separate') }}
           </router-link>
-          
-          <router-link 
-            to="/about" 
+
+          <router-link
+            to="/about"
             class="mobile-nav-link"
             :class="{ 'active': $route.name === 'about' }"
             @click="closeMobileMenu"
@@ -138,12 +188,25 @@
 </template>
 
 <script>
+import { useAuthStore } from '@/store/modules/auth'
+
 export default {
   name: 'NavigationBar',
   data() {
     return {
       mobileMenuOpen: false,
-      language: 'Language'
+      language: 'Language',
+      showUserMenu: false
+    }
+  },
+  computed: {
+    isAuthenticated() {
+      const authStore = useAuthStore()
+      return authStore.isAuthenticated
+    },
+    userName() {
+      const authStore = useAuthStore()
+      return authStore.userName
     }
   },
   methods: {
@@ -156,10 +219,30 @@ export default {
     changeLanguage() {
       this.$i18n.locale = this.language;
       localStorage.setItem('language', this.language);
+    },
+    toggleUserMenu() {
+      this.showUserMenu = !this.showUserMenu
+    },
+    async handleLogout() {
+      const authStore = useAuthStore()
+      await authStore.logout()
+      this.showUserMenu = false
+      this.$router.push('/')
+    },
+    handleClickOutside(event) {
+      if (!event.target.closest('.relative')) {
+        this.showUserMenu = false
+      }
     }
   },
   mounted() {
     this.language = localStorage.getItem('language') || 'Language';
+
+    // 点击外部关闭用户菜单
+    document.addEventListener('click', this.handleClickOutside)
+  },
+  beforeUnmount() {
+    document.removeEventListener('click', this.handleClickOutside)
   }
 }
 </script>
@@ -180,4 +263,4 @@ export default {
 .mobile-nav-link.active {
   @apply text-amber-600 bg-amber-50;
 }
-</style> 
+</style>
