@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git checkout:*)",
+      "Bash(ssh root@nota \"cat /apps/kink-server/nginx/docker-compose.yml | head -20\")",
+      "Bash(ssh:*)",
+      "Bash(git commit:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

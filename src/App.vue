@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { Notivue, Notification } from 'notivue'
 import CustomProgressNotification from './components/CustomProgressNotification.vue'
 import NavigationBar from './components/NavigationBar.vue'
+import ChinaSiteNotice from './components/ChinaSiteNotice.vue'
 
 const route = useRoute()
 
@@ -22,5 +23,6 @@ const showNavigationBar = computed(() => {
     <div class="flex-1 overflow-auto">
       <RouterView/>
     </div>
+    <ChinaSiteNotice />
   </div>
 </template>
