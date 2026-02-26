@@ -50,8 +50,22 @@
     <!-- Bing Webmaster Tools -->
     <meta name="msvalidate.01" content="F736132C8F67BF15FB10217FD4051BB4" />
 
-    <!-- Umami Analytics -->
-    <script defer src="https://analytics.notalabs.cn/script.js" data-website-id="b3c09bd3-265e-4eff-94b5-c0ef447d8e50"></script>
+    <!-- Umami Analytics (仅生产环境) -->
+    <script type="module">
+      (function() {
+        // 开发环境检测：本地开发或 dev/prod 模式判断
+        const isDev = import.meta.env.DEV ||
+                     window.location.hostname === 'localhost' ||
+                     window.location.hostname === '127.0.0.1';
+        if (!isDev) {
+          const script = document.createElement('script');
+          script.defer = true;
+          script.src = 'https://analytics.notalabs.cn/script.js';
+          script.setAttribute('data-website-id', '4e458153-d7b4-4fc7-ab6c-9487f4dcb978');
+          document.head.appendChild(script);
+        }
+      })();
+    </script>
 
     <!-- Google Analytics (if you have one) -->
     <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script> -->
