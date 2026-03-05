@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full flex flex-col justify-between" style="background-color: #f8f7f4;">
+  <div class="h-full flex flex-col" style="background-color: #f8f7f4; min-height: 0;">
     <!-- 分析歌曲选项栏 -->
     <div class="group fixed right-5 -top-96 min-w-72 shadow-lg shadow-inner p-3 bg-white rounded-md h-96 transition-all duration-300 z-10
     hover:top-0 hover:z-20" ref="analysisArea"
@@ -56,7 +56,7 @@
     <!-- 快捷键说明选项栏 -->
     <ShortcutHelp />
     <!-- 音符显示区 -->
-    <div class="flex1 h-full relative" id="canvasDiv" style="transform: rotateX(180deg);">
+    <div class="flex-1 min-h-0 overflow-auto relative" id="canvasDiv" style="transform: rotateX(180deg);">
       <canvas
         id="note-canvas"
         width="300"
@@ -101,7 +101,7 @@
         </div>
       </transition>
     </div>
-    <div class="w-full h-20 flex flex-row">
+    <div class="w-full h-20 flex flex-row flex-shrink-0">
       <div class="flex-1 h-full flex flex-row relative" v-for="(octave, octaveIndex) in octaveNum" :key="octaveIndex">
         <!-- 白键 -->
         <div
@@ -128,7 +128,7 @@
       </div>
     </div>
     <!-- 歌曲播放栏 -->
-    <div>
+    <div class="flex-shrink-0">
       <audio-player ref="audioPlayer" @timeupdate="timeUpdate"></audio-player>
     </div>
 
