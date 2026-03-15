@@ -61,6 +61,7 @@
         "main": "音高分析",
         "separate": "音频分离",
         "about": "关于",
+        "help": "帮助",
         "name": "识音",
         "nameDescription": "AI扒谱神器"
     },
@@ -104,7 +105,8 @@
         },
         "separateView": {
             "title": "AI本地音频分离",
-            "subtitle": "基于本地CPU运算实现人声与伴奏分离",
+            "subtitle": "基于本地资源运算实现人声与伴奏分离",
+            "gpuHelpLink": "如何开启GPU加速？",
             "feature1": "无需上传云端，100%本地处理",
             "feature2": "7分钟音频约需40分钟处理时间",
             "feature3": "处理期间请保持页面开启，取消任务刷新页面即可",
@@ -163,6 +165,25 @@
             "downloadFailed": "下载失败",
             "cleaned": "已清理",
             "cleanedDescription": "已清理当前运行结果，可以重新上传音频"
+        }
+    },
+    "helpView": {
+        "title": "帮助中心",
+        "subtitle": "查找使用指南和常见问题解答",
+        "searchPlaceholder": "搜索文章...",
+        "allArticles": "所有文章",
+        "noResults": "没有找到相关文章",
+        "backToHelp": "返回帮助中心",
+        "lastUpdated": "最后更新",
+        "articles": {
+            "gpu-rendering": {
+                "title": "如何开启浏览器GPU加速提升音频分离速度",
+                "description": "本教程将教您如何在Windows 10系统中开启浏览器的GPU硬件加速，从而显著提升音频分离的处理速度。"
+            },
+            "developer-note": {
+                "title": "开发者说明",
+                "description": "了解识音的开发团队背景，以及如何通过邮件与我们取得联系、提出需求和建议。"
+            }
         }
     }
 }

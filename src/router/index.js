@@ -76,6 +76,23 @@ const router = createRouter({
         description: 'AI本地音频分离工具，支持人声与伴奏分离，基于Demucs技术，100%本地处理，保护隐私安全'
       }
     },
+    {
+      path: '/help',
+      name: 'help',
+      component: () => import('../views/HelpView.vue'),
+      meta: {
+        title: '帮助中心 - 识音',
+        description: '识音使用帮助和常见问题解答'
+      }
+    },
+    {
+      path: '/help/:slug',
+      name: 'helpArticle',
+      component: () => import('../views/HelpArticleView.vue'),
+      meta: {
+        description: '识音帮助文章'
+      }
+    },
     // {
     //   path: '/test',
     //   name: 'Test',

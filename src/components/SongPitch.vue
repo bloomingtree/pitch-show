@@ -108,6 +108,7 @@
           v-for="(scale, scaleIndex) in [0, 2, 4, 5, 7, 9, 11]"
           :key="`white-${octaveIndex}-${scaleIndex}`"
           class="key-white bg-black cursor-pointer hover:bg-gray-200 transition-colors"
+          :class="{ 'key-active': activePitches.has(lowestPitch + octave * 12 + scale - 12) }"
           @mousedown="playPianoNote(lowestPitch + octave * 12 + scale - 12)">
           <div class="w-full h-full px-px bg-white bg-clip-content"></div>
         </div>
@@ -122,6 +123,7 @@
           ]"
           :key="`black-${octaveIndex}-${blackIndex}`"
           class="key-black bg-black absolute z-99 h-1/2 cursor-pointer hover:bg-gray-600 transition-colors"
+          :class="{ 'key-black-active': activePitches.has(lowestPitch + octave * 12 + blackScale.scale - 12) }"
           :style="'left: '+blackScale.left+'%;'"
           @mousedown="playPianoNote(lowestPitch + octave * 12 + blackScale.scale - 12)">
         </div>
@@ -173,6 +175,41 @@ export default {
     DynamicInfoDialog,
     MusicAnalysis,
     MusicNote
+  },
+  computed: {
+    /**
+     * 获取当前正在播放的音符的MIDI音高列表
+     * @returns {Set} 当前活跃的音符MIDI集合
+     */
+    activePitches() {
+      const activeSet = new Set()
+
+      if (!this.decodedNotes || this.decodedNotes.length === 0) {
+        return activeSet
+      }
+
+      const previewTime = 0.15 // 预览时间窗口（提前0.15秒高亮）
+      const currentTime = this.playTime
+
+      // 遍历音符，找到当前正在播放的
+      for (let i = this.lastPastNoteIndex; i < this.decodedNotes.length; i++) {
+        const note = this.decodedNotes[i]
+        const noteStart = note.startTimeSeconds
+        const noteEnd = note.startTimeSeconds + note.durationSeconds
+
+        // 检查音符是否在播放中或即将播放
+        if (currentTime >= noteStart - previewTime && currentTime <= noteEnd) {
+          activeSet.add(note.pitchMidi)
+        }
+
+        // 如果音符开始时间已经超过当前时间+5秒，停止检查
+        if (noteStart > currentTime + 5) {
+          break
+        }
+      }
+
+      return activeSet
+    }
   },
   data() {
     return {
@@ -768,7 +805,7 @@ export default {
     setCanvasWH() {
       const canvasDiv = document.getElementById('canvasDiv')
       const noteCanvas = document.getElementById("note-canvas")
-      
+
       // 检查元素是否存在
       if (!canvasDiv || !noteCanvas) {
         console.warn('Canvas elements not found, retrying...')
@@ -778,14 +815,14 @@ export default {
         }, 100)
         return
       }
-      
+
       this.noteAreaWidth = Math.floor(canvasDiv.clientWidth)
       this.noteAreaHeight = Math.floor(canvasDiv.clientHeight)
 
       noteCanvas.width = this.noteAreaWidth
       noteCanvas.height = this.noteAreaHeight
       this.secondLength = this.noteAreaHeight/this.showingSecond
-      
+
       // 重新初始化渲染器（如果已存在）
       if (this.canvasRenderer) {
         this.initCanvasRenderer();
@@ -847,6 +884,19 @@ a {
 }
 .key-white:first-child:hover {
   background-color: #ccc;
+}
+
+/* 白键激活状态 */
+.key-active {
+  background: linear-gradient(to bottom, #fbbf24, #f59e0b) !important;
+}
+.key-active > div {
+  background: linear-gradient(to bottom, #fef3c7, #fcd34d) !important;
+}
+
+/* 黑键激活状态 */
+.key-black-active {
+  background: linear-gradient(to bottom, #f59e0b, #d97706) !important;
 }
 .hover-state {
   top: 0 !important;

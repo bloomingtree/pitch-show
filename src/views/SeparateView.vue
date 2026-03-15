@@ -30,14 +30,21 @@
             <div class="my-1"><p class="text-sm text-gray-600 dark:text-gray-400">{{songFile !== null ? songFile.name : ''}}</p></div>
             <div class="mt-3 flex flex-col items-center justify-center">
                 <button
-                class="px-5 py-1 rounded shadow-lg hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100" 
+                class="px-5 py-1 rounded shadow-lg hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100"
                 @click="startAnanlyze">{{ $t('mainView.separateView.startAnalysis') }}</button>
 
+                <!-- GPU帮助链接 -->
+                <router-link
+                  to="/help/gpu-rendering"
+                  class="mt-3 text-sm text-blue-600 dark:text-blue-400 no-underline hover:underline !bg-transparent"
+                >
+                  {{ $t('mainView.separateView.gpuHelpLink') }}
+                </router-link>
             </div>
         </div>
       </div>
       <!-- 波形显示 -->
-      <div class="w-full h-full bg-slate-50">
+      <div class="w-full h-full" style="background-color: #f8f7f4;">
         <AudioWaveformPlayer
           v-if="processNum === 1"
           :audioBuffers="audioBuffers"

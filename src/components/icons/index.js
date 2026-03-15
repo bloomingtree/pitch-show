@@ -5,6 +5,7 @@
 
 export { default as MusicAnalysis } from './MusicAnalysisIcon.vue'
 export { default as MusicNote } from './MusicNoteIcon.vue'
+export { default as MusicNoteDot } from './MusicNoteDotIcon.vue'
 export { default as Close } from './CloseIcon.vue'
 export { default as Palette } from './PaletteIcon.vue'
 export { default as Check } from './CheckIcon.vue'

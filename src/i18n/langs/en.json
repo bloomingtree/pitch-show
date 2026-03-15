@@ -21,6 +21,7 @@
         "main": "Pitch Analysis",
         "separate": "Audio Separation",
         "about": "About",
+        "help": "Help",
         "name": "Know Note",
         "nameDescription": "AI Music Note"
     },
@@ -64,7 +65,8 @@
         },
         "separateView": {
             "title": "AI Local Audio Separation",
-            "subtitle": "Realize vocal and accompaniment separation based on local CPU computing",
+            "subtitle": "Realize vocal and accompaniment separation based on local resources",
+            "gpuHelpLink": "How to enable GPU acceleration?",
             "feature1": "No cloud upload required, 100% local processing",
             "feature2": "7-minute audio takes about 40 minutes to process",
             "feature3": "Please keep the page open during processing, refresh the page to cancel the task",
@@ -123,6 +125,25 @@
             "downloadFailed": "Download Failed",
             "cleaned": "Cleaned",
             "cleanedDescription": "Current results have been cleaned, you can upload audio again"
+        }
+    },
+    "helpView": {
+        "title": "Help Center",
+        "subtitle": "Find guides and frequently asked questions",
+        "searchPlaceholder": "Search articles...",
+        "allArticles": "All Articles",
+        "noResults": "No related articles found",
+        "backToHelp": "Back to Help Center",
+        "lastUpdated": "Last Updated",
+        "articles": {
+            "gpu-rendering": {
+                "title": "How to Enable GPU Acceleration to Speed Up Audio Separation",
+                "description": "This tutorial will teach you how to enable GPU hardware acceleration in your browser on Windows 10, significantly improving audio separation processing speed."
+            },
+            "developer-note": {
+                "title": "Developer Note",
+                "description": "Learn about the development team behind Know Note, and how to contact us via email for feature requests and suggestions."
+            }
         }
     }
 }
