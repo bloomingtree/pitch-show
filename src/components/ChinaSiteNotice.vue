@@ -71,7 +71,7 @@
           <!-- 按钮组 -->
           <div class="flex space-x-3">
             <a
-              href="https://shiyin.notalabs.cn/"
+              href="https://shiyin.notalabs.cn/?utm_source=cloudflare&utm_medium=link&utm_campaign=cross_site"
               target="_blank"
               rel="noopener noreferrer"
               class="flex-1 px-6 py-3 bg-gradient-to-r from-pink-400 to-rose-500 text-white rounded-2xl font-semibold shadow-lg hover:shadow-xl transition-all hover:scale-105 text-center"

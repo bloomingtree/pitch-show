@@ -62,7 +62,7 @@
           </router-link>
 
           <a
-            href="https://shiyin.notalabs.cn/"
+            href="https://shiyin.notalabs.cn/?utm_source=cloudflare&utm_medium=link&utm_campaign=cross_site"
             target="_blank"
             rel="noopener noreferrer"
             class="nav-link"
@@ -147,7 +147,7 @@
           </router-link>
 
           <a
-            href="https://shiyin.notalabs.cn/"
+            href="https://shiyin.notalabs.cn/?utm_source=cloudflare&utm_medium=link&utm_campaign=cross_site"
             target="_blank"
             rel="noopener noreferrer"
             class="mobile-nav-link"
