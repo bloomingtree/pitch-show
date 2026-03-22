@@ -125,6 +125,9 @@ router.afterEach((to) => {
 
   // Update canonical URL
   updateCanonicalUrl(window.location.href)
+
+  // Update hreflang tags for multi-region SEO
+  updateHreflangTags(to.path)
 })
 
 // Helper function to update meta tags
@@ -157,6 +160,31 @@ function updateCanonicalUrl(url) {
     canonical.setAttribute('href', url)
     document.head.appendChild(canonical)
   }
+}
+
+// Helper function to update hreflang tags for multi-region SEO
+function updateHreflangTags(path) {
+  // Remove existing hreflang tags
+  document.querySelectorAll('link[rel="alternate"][hreflang]').forEach(el => el.remove())
+
+  const intlDomain = 'https://pitch.shiyin.cyou'
+  const cnDomain = 'https://shiyin.notalabs.cn'
+
+  // Define hreflang tags
+  const hreflangTags = [
+    { hreflang: 'zh-CN', href: `${cnDomain}${path}` },      // Chinese (China) -> 国内站
+    { hreflang: 'en', href: `${intlDomain}${path}` },       // English -> 国际站
+    { hreflang: 'x-default', href: `${intlDomain}${path}` } // Default -> 国际站
+  ]
+
+  // Add hreflang tags
+  hreflangTags.forEach(({ hreflang, href }) => {
+    const link = document.createElement('link')
+    link.setAttribute('rel', 'alternate')
+    link.setAttribute('hreflang', hreflang)
+    link.setAttribute('href', href)
+    document.head.appendChild(link)
+  })
 }
 
 export default router
