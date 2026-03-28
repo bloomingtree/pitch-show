@@ -32,6 +32,12 @@ export default defineConfig({
         target: 'https://cdn.notalabs.cn',
         changeOrigin: true,
         rewrite: (path) => path
+      },
+      // R2 存储代理 - 用于模型文件下载
+      '/r2-models': {
+        target: 'https://r2.pitch.shiyin.cyou',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/r2-models/, '')
       }
     }
   },

@@ -103,8 +103,8 @@
       <!-- 自定义进度通知组件 -->
       <CustomProgressNotification
         v-if="showProgressDialog"
-        :title="isDownloadingModel ? $t('mainView.separateView.downloadingModelTitle') : (isExtractingModel ? $t('mainView.separateView.downloadingModelTitle') : $t('mainView.separateView.processingTitle'))"
-        :message="isDownloadingModel ? $t('mainView.separateView.modelDownloading') : (isExtractingModel ? $t('mainView.separateView.extractingModel') : $t('mainView.separateView.processingMessage'))"
+        :title="isDownloadingModel ? $t('mainView.separateView.downloadingModelTitle') : (isExtractingModel ? $t('mainView.separateView.extractingModelTitle') : (isInitializingModel ? $t('mainView.separateView.initializingModelTitle') : $t('mainView.separateView.processingTitle')))"
+        :message="isDownloadingModel ? $t('mainView.separateView.modelDownloading') : (isExtractingModel ? $t('mainView.separateView.extractingModel') : (isInitializingModel ? $t('mainView.separateView.initializingModel') : $t('mainView.separateView.processingMessage')))"
         :progress="downloadProgress"
         :progressMessage="progressMessage"
         :currentTime="progressCurrentTime"
@@ -155,6 +155,7 @@ export default {
       uncompressedModelPath: '/shiyin_downloads/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx',
       isDownloadingModel: false,
       isExtractingModel: false,
+      isInitializingModel: false,
       downloadStartTime: null,
       downloadElapsedTime: 0,
       downloadFailed: false
@@ -198,9 +199,14 @@ export default {
           // 将Blob转换为AudioBuffer用于波形显示和播放
           that.processAudioResults(blobs)
         } else if (status === 'error') {
+          // 关闭进度对话框
+          that.showProgressDialog = false;
+          // 在控制台打印详细错误信息
+          console.error('[Demucs Worker Error]', error);
+          console.error('[Demucs Worker Error] Full event data:', event.data);
           push.error({
             title: this.$t('mainView.separateView.processingResultFailed') + '，请反馈至kecsun@163.com',
-            description: error,
+            description: error || '未知错误',
             duration: 5000,
           });
         }
@@ -367,10 +373,11 @@ export default {
         // 清理计时器
         clearInterval(timeUpdateInterval);
 
-        // 隐藏进度对话框
-        this.showProgressDialog = false;
+        // 切换到初始化模型状态（保持进度框显示）
         this.isDownloadingModel = false;
         this.isExtractingModel = false;
+        this.isInitializingModel = true;
+        this.progressMessage = this.$t('mainView.separateView.initializingModel');
 
         push.success({
           title: this.$t('mainView.separateView.extractingModelComplete'),
@@ -386,6 +393,8 @@ export default {
         } catch (error) {
           // 错误已在 handleModelLoadError 中处理，这里不需要再做任何事
           console.log('模型加载失败，已提示用户重新下载');
+          this.showProgressDialog = false;
+          this.isInitializingModel = false;
         }
       } catch (error) {
         console.error('下载模型文件失败:', error);
@@ -426,6 +435,7 @@ export default {
     async continueAnalysis() {
       this.processNum = 0;
       this.showProgressDialog = true;
+      this.isInitializingModel = false;
       this.downloadProgress = 0;
       this.progressCurrent = 0;
       this.progressTotal = 0;

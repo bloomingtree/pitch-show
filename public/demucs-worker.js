@@ -4,6 +4,45 @@ import * as ort from 'onnxruntime-web';
 import * as tf from '@tensorflow/tfjs';
 import { default as FFT } from 'fft.js';
 
+// 初始化 TensorFlow.js 后端
+let tfBackendReady = false;
+async function initTfBackend() {
+    if (tfBackendReady) return;
+
+    console.log('[Worker] 初始化 TensorFlow.js 后端...');
+    try {
+        // 尝试按优先级设置后端：WebGL > CPU
+        const backends = ['webgl', 'cpu'];
+        let backendSet = false;
+
+        for (const backend of backends) {
+            try {
+                await tf.setBackend(backend);
+                await tf.ready();
+                console.log('[Worker] TensorFlow.js 后端设置成功:', backend);
+                backendSet = true;
+                break;
+            } catch (e) {
+                console.log('[Worker] TensorFlow.js 后端', backend, '不可用:', e.message);
+            }
+        }
+
+        if (!backendSet) {
+            throw new Error('没有可用的 TensorFlow.js 后端');
+        }
+
+        tfBackendReady = true;
+    } catch (error) {
+        console.error('[Worker] TensorFlow.js 初始化失败:', error);
+        throw error;
+    }
+}
+
+// 在 worker 启动时初始化
+initTfBackend().catch(err => {
+    console.error('[Worker] TensorFlow.js 初始化失败:', err);
+});
+
 let modelSession
 let inputTensor
 let refMean
@@ -47,30 +86,43 @@ self.onmessage = async (event) => {
 
 async function loadONNXModel(modelPath) {
     if(!modelPath) modelPath = 'https://nr9uwdeyhrffuqbu.public.blob.vercel-storage.com/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx'
+    console.log('[Worker] loadONNXModel 调用 - modelPath:', modelPath);
+
     // 如果模型已经加载完成，直接返回
-    if(loadedModel && modelSession) return;
-    
+    if(loadedModel && modelSession) {
+        console.log('[Worker] 模型已加载，跳过');
+        return;
+    }
+
     // 如果正在加载中，等待加载完成
     if(modelLoadingPromise) {
+        console.log('[Worker] 模型正在加载中，等待...');
         await modelLoadingPromise;
         return;
     }
-    
+
     // 开始加载模型
     loadedModel = true;
     modelLoadingPromise = (async () => {
         try {
             let response;
-            
+
             // 首先尝试从缓存加载
+            console.log('[Worker] 尝试从缓存加载模型...');
             try {
                 const cache = await caches.open('model-cache');
                 response = await cache.match(modelPath);
+                if (response) {
+                    console.log('[Worker] 从缓存找到模型');
+                } else {
+                    console.log('[Worker] 缓存中没有找到模型');
+                }
             } catch (cacheError) {
-                console.log('缓存访问失败，从服务器加载:', cacheError);
+                console.log('[Worker] 缓存访问失败:', cacheError.message);
             }
             // 如果缓存中没有，从服务器加载
             if (!response) {
+                console.log('[Worker] 从服务器加载模型...');
                 response = await fetch(modelPath, {
                     credentials: 'same-origin',
                     headers: {
@@ -78,16 +130,19 @@ async function loadONNXModel(modelPath) {
                     }
                 });
             }
-            
+
             if (!response.ok) {
                 loadedModel = false
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             // 显式转换为ArrayBuffer
+            console.log('[Worker] 读取模型 ArrayBuffer...');
             const modelBuffer = await response.arrayBuffer();
-            
+            console.log('[Worker] 模型大小:', (modelBuffer.byteLength / 1024 / 1024).toFixed(2), 'MB');
+
             // 创建推理会话
+            console.log('[Worker] 创建 ONNX 推理会话...');
             const session = await InferenceSession.create(modelBuffer, {
                 executionProviders: ['webgpu', 'webgl', 'wasm'],
                 graphOptimizationLevel: 'all',
@@ -96,19 +151,21 @@ async function loadONNXModel(modelPath) {
                     worker: true
                 }
             });
+            console.log('[Worker] ONNX 推理会话创建成功');
             modelSession = session
         } catch (error) {
             loadedModel = false
-            console.error('Failed to load ONNX model:', error);
+            console.error('[Worker] Failed to load ONNX model:', error);
             throw new Error(`模型加载失败: ${error.message}`);
         } finally {
             // 清理加载Promise
             modelLoadingPromise = null;
         }
     })();
-    
+
     // 等待加载完成
     await modelLoadingPromise;
+    console.log('[Worker] loadONNXModel 完成');
 }
 
 function loadAudio(tensor, mean, std) {
@@ -154,13 +211,33 @@ function padChunk(tensor, offset, length, targetLength) {
 }
 // 修改applyModel函数中的分块处理部分
 async function applyModel(id) {
+    console.log('[Worker] applyModel 开始执行');
+
+    // 确保 TensorFlow.js 后端已初始化
+    try {
+        await initTfBackend();
+        console.log('[Worker] TensorFlow.js 后端就绪');
+    } catch (tfError) {
+        console.error('[Worker] TensorFlow.js 初始化失败:', tfError);
+        throw new Error(`TensorFlow.js 初始化失败: ${tfError.message}`);
+    }
+
     // 确保模型加载完成
-    await loadONNXModel();
-    
+    try {
+        await loadONNXModel();
+        console.log('[Worker] 模型加载检查完成');
+    } catch (loadError) {
+        console.error('[Worker] 模型加载失败:', loadError);
+        throw new Error(`模型加载失败: ${loadError.message}`);
+    }
+
     // 验证模型是否成功加载
     if (!loadedModel || !modelSession) {
+        console.error('[Worker] 模型状态无效 - loadedModel:', loadedModel, 'modelSession:', !!modelSession);
         throw new Error('模型加载失败，无法继续处理');
     }
+
+    console.log('[Worker] 输入张量检查 - inputTensor:', !!inputTensor, 'dims:', inputTensor?.dims);
     
     const mixTensor = inputTensor;
     const overlap = 0.25
@@ -193,15 +270,26 @@ async function applyModel(id) {
     }
     let futures = []
     const targetLength = Math.floor(segment * samplerate)
+    console.log('[Worker] 开始分块处理 - 总长度:', length, '分块大小:', segmentLength, '步长:', stride);
     // 分块处理
+    let chunkIndex = 0;
     for (let offset = 0; offset < length; offset += stride) {
+        chunkIndex++;
         const chunkStart = offset;
         const chunkEnd = Math.min(offset + segmentLength, length);
         const chunkLength = chunkEnd - chunkStart;
+        console.log('[Worker] 处理分块', chunkIndex, '- offset:', offset, '长度:', chunkLength);
+
         const chunkTensor = padChunk(mixTensor, chunkStart, chunkLength, targetLength);
-        
+
         // 调用runModel处理分块
-        const chunkOut = await runModel(chunkTensor, segment, samplerate, chunkLength);
+        let chunkOut;
+        try {
+            chunkOut = await runModel(chunkTensor, segment, samplerate, chunkLength);
+        } catch (runModelError) {
+            console.error('[Worker] runModel 执行失败 - 分块', chunkIndex, ':', runModelError);
+            throw new Error(`模型推理失败 (分块 ${chunkIndex}): ${runModelError.message}`);
+        }
         futures.push({'future': chunkOut, 'offset': offset})
         const progressPercent = (chunkEnd / length * 100).toFixed(1);
         // 将采样数转换为时间格式 (采样率44100Hz)
@@ -327,31 +415,44 @@ async function processModelOutput(x, xt, mean_mag, std_mag, input2Shape) {
 // 修改后的运行ONNX模型函数
 async function runONNXModel(session, normalizedInput1, normalizedInput2) {
     try {
+        console.log('[Worker] runONNXModel 开始');
         // 使用异步数据获取避免阻塞GPU
         const [input1Data, input2Data] = await Promise.all([
             normalizedInput1.data(),
             normalizedInput2.data()
         ]);
-        
+        console.log('[Worker] 数据准备完成 - input1Data length:', input1Data.length, 'input2Data length:', input2Data.length);
+
         // 创建ONNX输入张量
         const input1Tensor = new ort.Tensor('float32', input1Data, normalizedInput1.shape);
         const input2Tensor = new ort.Tensor('float32', input2Data, normalizedInput2.shape);
-        
+
         // 准备输入
         const feeds = {
             mix: input1Tensor,
             mag: input2Tensor
         };
-        
+
+        console.log('[Worker] 开始 ONNX session.run...');
         // 运行模型
         const results = await session.run(feeds);
-        
+        console.log('[Worker] ONNX session.run 完成 - results keys:', Object.keys(results));
+
+        // 检查结果
+        if (!results.x || !results.xt) {
+            console.error('[Worker] ONNX 结果缺少预期输出 - x:', !!results.x, 'xt:', !!results.xt);
+            throw new Error('ONNX 推理结果缺少预期输出 (x 或 xt)');
+        }
+
         // 返回结果并标记需要释放
         return {
             x: results.x,
             xt: results.xt,
             toDispose: [input1Tensor, input2Tensor]
         };
+    } catch (error) {
+        console.error('[Worker] runONNXModel 错误:', error);
+        throw error;
     } finally {
         // 确保释放TF资源，即使出错
         tf.dispose([normalizedInput1, normalizedInput2]);
@@ -361,28 +462,35 @@ async function runONNXModel(session, normalizedInput1, normalizedInput2) {
 async function runModel(mixTensor, segment, samplerate, realLength) {
     // 创建资源释放列表
     const toDispose = [];
-    
+
     try {
+        console.log('[Worker] runModel 开始 - mixTensor dims:', mixTensor.dims);
         const length = mixTensor.dims[2];
         const validLength = Math.floor(segment * samplerate);
-        
+
         // 填充音频到有效长度
         const paddedMix = mixTensor;
         toDispose.push(paddedMix);
-        
+
         // 生成频谱特征
+        console.log('[Worker] 计算频谱...');
         const z = computeSpectrogram(paddedMix);
         toDispose.push(z);
-        
+
+        console.log('[Worker] 计算幅度谱...');
         const mag = demucsMagnitude(z);
         toDispose.push(mag);
-        
+
+        console.log('[Worker] 标准化输入...');
         const { normalizedInput1, normalizedInput2, meanMag, stdMag } = normalizeInputs(
             convertOnnxTensorToTf(paddedMix),
             mag
         );
         toDispose.push(normalizedInput1, normalizedInput2);
+
+        console.log('[Worker] 运行 ONNX 推理 - input1 shape:', normalizedInput1.shape, 'input2 shape:', normalizedInput2.shape);
         const results = await runONNXModel(modelSession, normalizedInput1, normalizedInput2);
+        console.log('[Worker] ONNX 推理完成');
         
         // 添加ONNX资源到释放列表
         if (results.toDispose) {
@@ -658,12 +766,15 @@ function computeSpectrogram(audioData) {
     if(hl !== nfft / 4) {
         throw new Error('hop_length must be nfft / 4')
     }
-    const le = Math.ceil(audioData.dims[2] / hl)
+    // 保存原始长度，因为在转换后会丢失 dims 属性
+    const originalLength = audioData.dims[2];
+    const le = Math.ceil(originalLength / hl)
     let pad = Math.floor(hl / 2) * 3
-    audioData = pad1d(convertOnnxTensorToTf(audioData), [pad, pad + le * hl - audioData.dims[2]], "reflect")
+    const tfAudioData = convertOnnxTensorToTf(audioData);
+    audioData = pad1d(tfAudioData, [pad, pad + le * hl - originalLength], "reflect")
     const z = spectro(audioData, nfft, hl);
     const result = processSpectro(z, le)
-    
+
     const shape = result.shape;
     return result.reshape([1, ...shape])
 }

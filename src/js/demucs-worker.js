@@ -10,6 +10,7 @@ let refMean
 let refStd
 let loadedModel = false
 let modelLoadingPromise = null
+let savedModelPath = null
 const target_sr = 44100
 
 // 监听主线程消息
@@ -46,7 +47,12 @@ self.onmessage = async (event) => {
   
 
 async function loadONNXModel(modelPath) {
-    if(!modelPath) {
+    // 保存模型路径以便后续使用
+    if(modelPath) {
+        savedModelPath = modelPath;
+    }
+
+    if(!savedModelPath) {
         throw new Error('模型路径未指定，请先下载模型文件');
     }
     // 如果模型已经加载完成，直接返回
@@ -67,13 +73,13 @@ async function loadONNXModel(modelPath) {
             // 首先尝试从缓存加载
             try {
                 const cache = await caches.open('model-cache');
-                response = await cache.match(modelPath);
+                response = await cache.match(savedModelPath);
             } catch (cacheError) {
                 console.log('缓存访问失败，从服务器加载:', cacheError);
             }
             // 如果缓存中没有，从服务器加载
             if (!response) {
-                response = await fetch(modelPath, {
+                response = await fetch(savedModelPath, {
                     credentials: 'same-origin',
                     headers: {
                         'Accept': 'application/octet-stream'
