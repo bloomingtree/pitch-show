@@ -605,10 +605,10 @@ export default {
         return;
       }
 
-              // 模型文件存在，直接开始分析
-        this.continueAnalysis();
-      }
-    },
+      // 模型文件存在，直接开始分析
+      this.continueAnalysis();
+    }
+  },
   mounted() {
     // 在Cloudflare Pages上，静态文件直接放在根目录下
     const workerPath = process.env.NODE_ENV === 'production' ? '/demucs-worker.js' : '/public/demucs-worker.js';
