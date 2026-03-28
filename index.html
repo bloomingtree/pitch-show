@@ -18,16 +18,15 @@
     <meta property="og:title" content="识音 - 免费AI扒谱神器">
     <meta property="og:description" content="基于BasicPitch技术的免费AI扒谱工具，支持歌曲音高分析、音频分离等功能，100%本地处理，保护隐私安全。">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://your-domain.com">
-    <meta property="og:image" content="https://your-domain.com/og-image.jpg">
+    <meta property="og:image" content="/og-image.jpg">
     <meta property="og:site_name" content="识音">
     <meta property="og:locale" content="zh_CN">
-    
+
     <!-- Twitter Card Meta Tags -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="识音 - 免费AI扒谱神器">
     <meta name="twitter:description" content="基于BasicPitch技术的免费AI扒谱工具，支持歌曲音高分析、音频分离等功能，100%本地处理，保护隐私安全。">
-    <meta name="twitter:image" content="https://your-domain.com/twitter-image.jpg">
+    <meta name="twitter:image" content="/twitter-image.jpg">
     
     <!-- Additional SEO Meta Tags -->
     <meta name="application-name" content="识音">
@@ -48,8 +47,25 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     
     <!-- Bing Webmaster Tools -->
-    <meta name="msvalidate.01" content="867C86A7F6E3CCE88529B640B099A80C" />
-    
+    <meta name="msvalidate.01" content="F736132C8F67BF15FB10217FD4051BB4" />
+
+    <!-- Umami Analytics (仅生产环境) -->
+    <script type="module">
+      (function() {
+        // 开发环境检测：本地开发或 dev/prod 模式判断
+        const isDev = import.meta.env.DEV ||
+                     window.location.hostname === 'localhost' ||
+                     window.location.hostname === '127.0.0.1';
+        if (!isDev) {
+          const script = document.createElement('script');
+          script.defer = true;
+          script.src = 'https://analytics.notalabs.cn/script.js';
+          script.setAttribute('data-website-id', '4e458153-d7b4-4fc7-ab6c-9487f4dcb978');
+          document.head.appendChild(script);
+        }
+      })();
+    </script>
+
     <!-- Google Analytics (if you have one) -->
     <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=GA_MEASUREMENT_ID"></script> -->
     
@@ -60,7 +76,6 @@
       "@type": "WebApplication",
       "name": "识音",
       "description": "基于BasicPitch技术的免费AI扒谱工具，支持歌曲音高分析、音频分离等功能",
-      "url": "https://your-domain.com",
       "applicationCategory": "MusicApplication",
       "operatingSystem": "Web Browser",
       "offers": {
@@ -70,7 +85,7 @@
       },
       "featureList": [
         "AI扒谱",
-        "音高分析", 
+        "音高分析",
         "音频分离",
         "人声分离",
         "伴奏分离",

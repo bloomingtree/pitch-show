@@ -37,4 +37,13 @@
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
+  <url>
+    <loc>https://pitch.shiyin.cyou/help</loc>
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://shiyin.notalabs.cn/help"/>
+    <xhtml:link rel="alternate" hreflang="en" href="https://pitch.shiyin.cyou/help"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://pitch.shiyin.cyou/help"/>
+    <lastmod>2026-03-22</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
 </urlset>

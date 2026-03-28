@@ -1,0 +1,898 @@
+{
+  "info": {
+    "name": "识音 Shiyin API",
+    "description": "识音后端 API 测试集合",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000/api",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refreshToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "健康检查",
+      "item": [
+        {
+          "name": "健康检查",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "认证",
+      "item": [
+        {
+          "name": "用户注册",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"nickname\": \"测试用户\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "用户登录",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "登录成功后，请将返回的 access_token 和 refresh_token 分别保存到环境变量中"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.collectionVariables.set(\"accessToken\", jsonData.data.access_token);",
+                  "pm.collectionVariables.set(\"refreshToken\", jsonData.data.refresh_token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "刷新 Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            }
+          }
+        },
+        {
+          "name": "获取当前用户信息",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "登出",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "用户",
+      "item": [
+        {
+          "name": "获取我的资料",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me"]
+            }
+          }
+        },
+        {
+          "name": "更新我的资料",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nickname\": \"新昵称\",\n  \"bio\": \"这是我的个人简介\",\n  \"website_url\": \"https://example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me"]
+            }
+          }
+        },
+        {
+          "name": "修改密码",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"password123\",\n  \"new_password\": \"newpassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me/password",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me", "password"]
+            }
+          }
+        },
+        {
+          "name": "获取存储使用情况",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/users/me/storage",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me", "storage"]
+            }
+          }
+        },
+        {
+          "name": "搜索用户",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/search?q=测试&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "测试"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "项目",
+      "item": [
+        {
+          "name": "创建项目",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"我的音乐项目\",\n  \"description\": \"这是一个测试项目\",\n  \"bpm\": 120,\n  \"key\": \"C\",\n  \"tags\": [\"pop\", \"electronic\"],\n  \"analysis_data\": {\n    \"notes\": [],\n    \"bars\": []\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects"]
+            }
+          }
+        },
+        {
+          "name": "获取我的项目列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/me/list?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", "me", "list"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取项目详情",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:projectId",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", ":projectId"],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "your-project-id-here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "更新项目",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"更新后的项目名称\",\n  \"description\": \"更新后的描述\",\n  \"is_public\": true,\n  \"is_draft\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/projects/:projectId",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", ":projectId"],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "your-project-id-here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "发布/取消发布项目",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:projectId/visibility",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", ":projectId", "visibility"],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "your-project-id-here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "删除项目",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:projectId",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", ":projectId"],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "your-project-id-here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "复制项目",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/projects/:projectId/duplicate",
+              "host": ["{{baseUrl}}"],
+              "path": ["projects", ":projectId", "duplicate"],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "your-project-id-here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "文件",
+      "item": [
+        {
+          "name": "上传音频文件",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/your/audio.mp3"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/files/upload/audio",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "upload", "audio"]
+            }
+          }
+        },
+        {
+          "name": "上传头像",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "/path/to/your/avatar.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/files/upload/avatar",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "upload", "avatar"]
+            }
+          }
+        },
+        {
+          "name": "获取我的文件列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/me/list?type=audio&page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", "me", "list"],
+              "query": [
+                {
+                  "key": "type",
+                  "value": "audio"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "删除文件",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/files/:fileId",
+              "host": ["{{baseUrl}}"],
+              "path": ["files", ":fileId"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "your-file-id-here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "分享",
+      "item": [
+        {
+          "name": "创建分享",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": \"your-project-id\",\n  \"is_public\": true,\n  \"allow_download\": true,\n  \"password\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/share",
+              "host": ["{{baseUrl}}"],
+              "path": ["share"]
+            }
+          }
+        },
+        {
+          "name": "访问分享",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/share/:shareCode",
+              "host": ["{{baseUrl}}"],
+              "path": ["share", ":shareCode"],
+              "variable": [
+                {
+                  "key": "shareCode",
+                  "value": "share-code-here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取我的分享列表",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/share/me/list?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["share", "me", "list"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "取消分享",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/share/:shareId",
+              "host": ["{{baseUrl}}"],
+              "path": ["share", ":shareId"],
+              "variable": [
+                {
+                  "key": "shareId",
+                  "value": "your-share-id-here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "社区",
+      "item": [
+        {
+          "name": "作品广场",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/community/projects?page=1&limit=20&sort_by=created_at",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "projects"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "created_at"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "热门项目",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/community/projects/trending?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "projects", "trending"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "点赞/取消点赞",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": \"your-project-id\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/community/likes",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "likes"]
+            }
+          }
+        },
+        {
+          "name": "收藏/取消收藏",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": \"your-project-id\",\n  \"folder_name\": \"默认收藏夹\",\n  \"notes\": \"备注\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/community/favorites",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "favorites"]
+            }
+          }
+        },
+        {
+          "name": "发表评论",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"project_id\": \"your-project-id\",\n  \"content\": \"这是一条评论\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/community/comments",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "comments"]
+            }
+          }
+        },
+        {
+          "name": "获取项目评论",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/community/comments/project/:projectId?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "comments", "project", ":projectId"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "projectId",
+                  "value": "your-project-id-here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "关注/取消关注用户",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": \"target-user-id\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/community/follows",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "follows"]
+            }
+          }
+        },
+        {
+          "name": "获取我的通知",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/community/notifications/me?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "notifications", "me"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "获取分类列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/community/categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "categories"]
+            }
+          }
+        },
+        {
+          "name": "获取热门标签",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/community/tags/trending?limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["community", "tags", "trending"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

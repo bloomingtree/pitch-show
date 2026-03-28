@@ -1,4 +1,44 @@
 {
+    "auth": {
+        "title": "进入音乐工作室",
+        "emailLogin": "使用邮箱验证码登录",
+        "emailPlaceholder": "请输入电子邮箱",
+        "sendOTP": "发送验证码",
+        "sending": "发送中...",
+        "retryIn": "秒后重试",
+        "otpPlaceholder": "请输入6位验证码",
+        "login": "登录",
+        "verifying": "验证中...",
+        "OTPSent": "验证码已发送",
+        "checkEmail": "请检查您的邮箱",
+        "loginSuccess": "登录成功",
+        "loginFailed": "验证失败",
+        "otpInvalid": "验证码错误或已过期",
+        "emailInvalid": "邮箱格式不正确",
+        "emailRequired": "请输入电子邮箱",
+        "otpRequired": "请输入6位验证码",
+        "modifyEmail": "修改邮箱",
+        "loginButton": "登录"
+    },
+    "profile": {
+        "title": "个人资料",
+        "username": "用户名",
+        "usernamePlaceholder": "请输入用户名",
+        "avatar": "头像",
+        "avatarUrl": "头像URL",
+        "avatarUrlPlaceholder": "请输入头像图片链接",
+        "save": "保存修改",
+        "saving": "保存中...",
+        "uploadAvatar": "上传头像",
+        "selectImage": "选择图片",
+        "dangerZone": "危险操作",
+        "deleteAccount": "删除账户",
+        "deleteConfirm": "确认删除账户？",
+        "deleteWarning": "此操作不可逆，您的所有数据将被永久删除。",
+        "confirmDelete": "确认删除",
+        "cancel": "取消",
+        "back": "返回"
+    },
     "infoView": {
         "title": "上传音频，轻松获取音符信息！",
         "description": "这是一款免费扒谱、音频音高分析工具，帮助你更好地了解音乐，用户只需上传音频，静待2分钟，网站将借助basic-pitch进行分析，并显示在网页上，目前音符数据仅存储在本地。",
@@ -21,6 +61,7 @@
         "main": "音高分析",
         "separate": "音频分离",
         "about": "关于",
+        "help": "帮助",
         "name": "识音",
         "nameDescription": "AI扒谱神器"
     },
@@ -64,7 +105,8 @@
         },
         "separateView": {
             "title": "AI本地音频分离",
-            "subtitle": "基于本地CPU运算实现人声与伴奏分离",
+            "subtitle": "基于本地资源运算实现人声与伴奏分离",
+            "gpuHelpLink": "如何开启GPU加速？",
             "feature1": "无需上传云端，100%本地处理",
             "feature2": "7分钟音频约需40分钟处理时间",
             "feature3": "处理期间请保持页面开启，取消任务刷新页面即可",
@@ -75,17 +117,22 @@
             "separationResult": "分离结果",
             "separationSubtitle": "点击下方按钮播放或下载音轨",
             "modelDownloadTitle": "需要下载模型文件",
-            "modelDownloadDescription": "首次使用需要下载AI模型文件（约185MB），下载后将保存在浏览器缓存中，下次可直接使用。",
+            "modelDownloadDescription": "首次使用需要下载AI模型文件（约97MB），下载后将保存在浏览器缓存中，下次可直接使用。",
             "cancel": "取消",
             "startDownload": "开始下载",
             "processingTitle": "正在处理音频文件",
+            "downloadingModelTitle": "正在下载模型文件",
             "processingMessage": "请耐心等待，AI正在分离音频轨道",
             "modelDownloading": "正在下载模型文件...",
             "loadingAudio": "正在加载音频文件...",
             "processingAudio": "正在处理音频文件...",
             "modelDownloadComplete": "模型文件下载完成",
+            "extractingModel": "正在解压模型文件...",
+            "extractingModelComplete": "模型文件解压完成",
             "modelLoadFailed": "模型加载失败",
             "modelDownloadFailed": "模型文件下载失败",
+            "modelLoadFailedClearCache": "模型加载失败，已清除缓存，请重新下载",
+            "retryDownload": "重新下载",
             "audioSeparationComplete": "音频分离完成",
             "audioSeparationDescription": "可以在下方播放和下载分离后的音轨",
             "processingResultFailed": "处理音频结果失败",
@@ -118,6 +165,25 @@
             "downloadFailed": "下载失败",
             "cleaned": "已清理",
             "cleanedDescription": "已清理当前运行结果，可以重新上传音频"
+        }
+    },
+    "helpView": {
+        "title": "帮助中心",
+        "subtitle": "查找使用指南和常见问题解答",
+        "searchPlaceholder": "搜索文章...",
+        "allArticles": "所有文章",
+        "noResults": "没有找到相关文章",
+        "backToHelp": "返回帮助中心",
+        "lastUpdated": "最后更新",
+        "articles": {
+            "gpu-rendering": {
+                "title": "如何开启浏览器GPU加速提升音频分离速度",
+                "description": "本教程将教您如何在Windows 10系统中开启浏览器的GPU硬件加速，从而显著提升音频分离的处理速度。"
+            },
+            "developer-note": {
+                "title": "开发者说明",
+                "description": "了解识音的开发团队背景，以及如何通过邮件与我们取得联系、提出需求和建议。"
+            }
         }
     }
 }
