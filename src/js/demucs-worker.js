@@ -46,7 +46,9 @@ self.onmessage = async (event) => {
   
 
 async function loadONNXModel(modelPath) {
-    if(!modelPath) modelPath = 'https://nr9uwdeyhrffuqbu.public.blob.vercel-storage.com/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx'
+    if(!modelPath) {
+        throw new Error('模型路径未指定，请先下载模型文件');
+    }
     // 如果模型已经加载完成，直接返回
     if(loadedModel && modelSession) return;
     

@@ -151,7 +151,7 @@ export default {
       progressMessage: '',
       progressCurrentTime: '0:00',
       progressTotalTime: '0:00',
-      modelPath: '/shiyin_downloads/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx.gz',
+      modelPath: 'https://r2.pitch.shiyin.cyou/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx.gz',
       uncompressedModelPath: '/shiyin_downloads/htdemucs-CGDK2CS7bfETmY3cfdyDf1isz4JQyB.onnx',
       isDownloadingModel: false,
       isExtractingModel: false,
