@@ -6,9 +6,14 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && npm run copy-worker",
+    "build:cn": "npm run build && node scripts/generate-robots.js cn && node scripts/generate-sitemap.js cn",
+    "build:intl": "npm run build && node scripts/generate-robots.js intl && node scripts/generate-sitemap.js intl",
     "copy-worker": "node -e \"const fs=require('fs');fs.copyFileSync('public/demucs-worker.js','dist/demucs-worker.js')\"",
+    "generate-seo": "node scripts/generate-robots.js cn && node scripts/generate-sitemap.js cn",
+    "generate-seo:intl": "node scripts/generate-robots.js intl && node scripts/generate-sitemap.js intl",
     "preview": "npm run build && wrangler pages dev ./dist",
-    "deploy": "npm run build && wrangler pages deploy ./dist"
+    "deploy": "npm run build:intl && wrangler pages deploy ./dist",
+    "deploy:cn": "npm run build:cn"
   },
   "dependencies": {
     "@spotify/basic-pitch": "^1.0.1",

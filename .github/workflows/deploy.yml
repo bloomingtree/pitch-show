@@ -23,8 +23,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build project
-        run: npm run build
+      - name: Build project (CN site)
+        run: npm run build:cn
 
       - name: Copy worker file
         run: npm run copy-worker
