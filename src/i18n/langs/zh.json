@@ -74,7 +74,11 @@
             "showButton": "显示",
             "deleteButton": "删除",
             "separateButton": "/ 音频分离 / ",
-            "firstButton": "/ 首页 /"
+            "firstButton": "/ 首页 /",
+            "analyzingTitle": "正在分析音频",
+            "analyzingMessage": "AI 正在识别音符，请稍候...",
+            "processingTitle": "正在处理音符",
+            "processingMessage": "正在整理和优化音符数据..."
         },
         "helpBar": {
             "title": "快捷键说明",

@@ -9,21 +9,21 @@
         </div>
         <h3 class="text-lg font-medium text-gray-900 mb-2">{{ title }}</h3>
         <p class="text-sm text-gray-600 mb-4">{{ message }}</p>
-        
+
         <!-- 进度条 -->
         <div class="w-full bg-gray-200 rounded-full h-3 mb-4 overflow-hidden">
-          <div 
+          <div
             class="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out shadow-sm"
             :style="{ width: progress + '%' }"
           ></div>
         </div>
-        
+
         <!-- 进度信息 -->
         <div class="flex justify-between items-center text-sm text-gray-500 mb-2">
           <span>{{ Math.round(progress) }}%</span>
-          <span v-if="currentTime && totalTime">{{ currentTime }} / {{ totalTime }}</span>
+          <span>{{ displayTimeInfo }}</span>
         </div>
-        
+
         <!-- 进度消息 -->
         <p v-if="progressMessage" class="text-xs text-gray-400">{{ progressMessage }}</p>
       </div>
@@ -60,7 +60,107 @@ export default {
       default: '0:00'
     }
   },
+  data() {
+    return {
+      internalElapsedTime: 0,  // 内部计时（秒）
+      timerInterval: null
+    }
+  },
+  computed: {
+    /**
+     * 判断是否使用内置计时
+     * 如果外部传入了非默认的时间值，则使用外部传入的
+     */
+    useInternalTiming() {
+      // 如果 currentTime 或 totalTime 不是默认值，说明外部传入了
+      return this.currentTime === '0:00' && this.totalTime === '0:00'
+    },
+
+    /**
+     * 显示用的当前时间
+     */
+    displayCurrentTime() {
+      if (!this.useInternalTiming) {
+        return this.currentTime
+      }
+      return this.formatTime(this.internalElapsedTime)
+    },
+
+    /**
+     * 显示用的总时间（预估）
+     */
+    displayTotalTime() {
+      if (!this.useInternalTiming) {
+        return this.totalTime
+      }
+      // 进度为 0 时无法预估，显示占位符
+      if (this.progress <= 0) {
+        return '--:--'
+      }
+      // 根据当前进度和已耗时计算预估总耗时
+      const estimatedTotal = this.internalElapsedTime / (this.progress / 100)
+      return this.formatTime(Math.round(estimatedTotal))
+    },
+
+    /**
+     * 时间信息文本
+     */
+    displayTimeInfo() {
+      if (this.useInternalTiming) {
+        return `${this.displayCurrentTime} / ${this.displayTotalTime}`
+      }
+      // 外部传入模式，只在有时间时显示
+      if (this.currentTime && this.totalTime) {
+        return `${this.currentTime} / ${this.totalTime}`
+      }
+      return ''
+    }
+  },
+  mounted() {
+    // 使用内置计时时启动计时器
+    if (this.useInternalTiming) {
+      this.startTimer()
+    }
+  },
+  beforeUnmount() {
+    this.stopTimer()
+  },
   methods: {
+    /**
+     * 格式化时间为 M:SS 格式
+     */
+    formatTime(seconds) {
+      if (seconds < 0 || !isFinite(seconds)) {
+        return '--:--'
+      }
+      const m = Math.floor(seconds / 60)
+      const s = Math.floor(seconds % 60)
+      return `${m}:${s.toString().padStart(2, '0')}`
+    },
+
+    /**
+     * 启动计时器
+     */
+    startTimer() {
+      this.internalElapsedTime = 0
+      this.timerInterval = setInterval(() => {
+        this.internalElapsedTime++
+      }, 1000)
+    },
+
+    /**
+     * 停止计时器
+     */
+    stopTimer() {
+      if (this.timerInterval) {
+        clearInterval(this.timerInterval)
+        this.timerInterval = null
+      }
+    },
+
+    /**
+     * 格式化字节数
+     */
     formatBytes(bytes) {
       if (bytes === 0) return '0 B';
       const k = 1024;

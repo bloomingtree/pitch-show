@@ -34,7 +34,11 @@
             "showButton": "Show",
             "deleteButton": "Delete",
             "separateButton": "/ Audio Separation / ",
-            "firstButton": "/ Home /"
+            "firstButton": "/ Home /",
+            "analyzingTitle": "Analyzing Audio",
+            "analyzingMessage": "AI is detecting notes, please wait...",
+            "processingTitle": "Processing Notes",
+            "processingMessage": "Organizing and optimizing note data..."
         },
         "helpBar": {
             "title": "Shortcut Help",

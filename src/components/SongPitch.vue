@@ -150,18 +150,27 @@
       :current-scheme="colorScheme"
       @close="showDynamicInfoDialog = false"
       @update:currentScheme="updateColorScheme" />
-     
+
+    <!-- 分析进度对话框 -->
+    <CustomProgressNotification
+      v-if="showProgressDialog"
+      :title="progressTitle"
+      :message="progressMessage"
+      :progress="analysisProgress"
+    />
+
   </div>
 </template>
 
 <script>
 import AudioPlayer from './AudioPlayer.vue'
-import { BasicPitch, noteFramesToTime, addPitchBendsToNoteEvents, outputToNotesPoly } from '@spotify/basic-pitch';
+import { BasicPitch } from '@spotify/basic-pitch';
 import * as tf from '@tensorflow/tfjs';
 import songDB from '@/store/Song'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import SoundTagger from '@/js/SoundTagger.js'
 import DynamicInfoDialog from '@/components/DynamicInfoDialog.vue'
+import CustomProgressNotification from '@/components/CustomProgressNotification.vue'
 import { MusicAnalysis, MusicNote } from '@/components/icons'
 
 export default {
@@ -173,6 +182,7 @@ export default {
     AudioPlayer,
     ShortcutHelp,
     DynamicInfoDialog,
+    CustomProgressNotification,
     MusicAnalysis,
     MusicNote
   },
@@ -209,6 +219,28 @@ export default {
       }
 
       return activeSet
+    },
+
+    /**
+     * 根据进度返回当前阶段的标题
+     */
+    progressTitle() {
+      if (this.analysisProgress < 80) {
+        return this.$t('mainView.listBar.analyzingTitle') || '正在分析音频'
+      } else {
+        return this.$t('mainView.listBar.processingTitle') || '正在处理音符'
+      }
+    },
+
+    /**
+     * 根据进度返回当前阶段的消息
+     */
+    progressMessage() {
+      if (this.analysisProgress < 80) {
+        return this.$t('mainView.listBar.analyzingMessage') || 'AI 正在识别音符，请稍候...'
+      } else {
+        return this.$t('mainView.listBar.processingMessage') || '正在整理和优化音符数据...'
+      }
     }
   },
   data() {
@@ -242,6 +274,8 @@ export default {
       enableDynamicAnalysis: true, // 是否启用动态音符分析
       dynamicStats: null, // 动态音符统计信息
       showDynamicInfoDialog: false, // 是否显示动态音符信息弹窗
+      showProgressDialog: false, // 是否显示分析进度对话框
+      analysisProgress: 0, // 分析进度（0-100）
       colorScheme: localStorage.getItem('colorScheme') || 'sunset', // 颜色方案
       colorSchemes: { // 颜色方案配置
         ocean: {
@@ -264,6 +298,53 @@ export default {
     }
   },
   methods: {
+    /**
+     * 使用 Worker 进行音符后处理（转换 + 弯音 + 排序），避免阻塞主线程
+     * @param {Array} frames - 帧数据
+     * @param {Array} onsets - 起始点数据
+     * @param {Array} contours - 轮廓数据
+     * @param {Function} onProgress - 进度回调
+     * @returns {Promise<Array>} 处理后的音符数组（包含弯音信息）
+     */
+    processNotesWithWorker(frames, onsets, contours, onProgress = null) {
+      return new Promise((resolve, reject) => {
+        // 创建 Worker
+        const worker = new Worker(new URL('@/js/note-processor-worker.js', import.meta.url), { type: 'module' })
+
+        worker.onmessage = (e) => {
+          const { type, step, progress, notes, error } = e.data
+
+          if (type === 'progress') {
+            if (onProgress) onProgress(step, progress)
+          } else if (type === 'complete') {
+            worker.terminate()
+            resolve(notes)
+          } else if (type === 'error') {
+            worker.terminate()
+            reject(new Error(error))
+          }
+        }
+
+        worker.onerror = (error) => {
+          worker.terminate()
+          reject(error)
+        }
+
+        // 发送处理请求
+        worker.postMessage({
+          type: 'process',
+          data: {
+            frames,
+            onsets,
+            contours,
+            onsetThreshold: 0.25,
+            frameThreshold: 0.25,
+            minNoteLength: 5
+          }
+        })
+      })
+    },
+
     //将采样率下降到22050
     async resampleAudioBuffer(songBuffer) {
       const wavBuffer = songBuffer
@@ -308,58 +389,71 @@ export default {
       const frames = []
       const onsets = []
       const contours = []
-      const model = await tf.loadGraphModel(`/model.json`)
-      let renderedBuffer = await this.resampleAudioBuffer(songBuffer)
-      const basicPitch = new BasicPitch(model);
-      await basicPitch.evaluateModel(
-        renderedBuffer,
-        (f, o, c) => {
-          frames.push(...f);
-          onsets.push(...o);
-          contours.push(...c);
-        },
-        (p) => {
-          p *= 100
-          p = p.toFixed(2)
-          that.processStr = p + '%'
-        }
-      );
-      this.processStr = '正在获取音符，请耐心等待'
-      const notes = noteFramesToTime(
-        addPitchBendsToNoteEvents(
-          contours,
-          outputToNotesPoly(frames, onsets, 0.25, 0.25, 5),
-        ),
-      )
-      this.decodedNotes = notes.sort((a,b)=> {
-        return (a.startTimeSeconds+a.durationSeconds) - (b.startTimeSeconds+b.durationSeconds)  //按照结束时间由前到后排序
-      })
-      
-      
-      this.amplitudeMag = 0 // 修改强度扩大倍数为默认值
-      this.pastNoteIndex = 0
 
-      this.changeNoteAmplitude()
-      
-      // 动态音符分析
-      if (this.enableDynamicAnalysis) {
-        this.processStr = '正在进行动态音符分析...'
-        try {
-          if (!this.soundTagger) {
-            this.soundTagger = new SoundTagger()
+      // 显示进度对话框
+      this.showProgressDialog = true
+      this.analysisProgress = 0
+
+      try {
+        // 步骤1: 加载模型
+        const model = await tf.loadGraphModel(`/model.json`)
+
+        // 步骤2: 重采样音频
+        const renderedBuffer = await this.resampleAudioBuffer(songBuffer)
+
+        // 步骤3: 创建 BasicPitch 实例
+        const basicPitch = new BasicPitch(model);
+
+        // 步骤4: 模型评估（0-80%）
+        await basicPitch.evaluateModel(
+          renderedBuffer,
+          (f, o, c) => {
+            frames.push(...f);
+            onsets.push(...o);
+            contours.push(...c);
+          },
+          (p) => {
+            that.analysisProgress = p * 80
           }
+        );
+
+        // 步骤5: Worker 后处理（80-95%）
+        this.analysisProgress = 82
+        this.decodedNotes = await this.processNotesWithWorker(frames, onsets, contours, (step, progress) => {
+          this.analysisProgress = 82 + progress * 0.13
+        })
+
+        // 步骤6: 计算音符强度（95-100%）
+        this.analysisProgress = 95
+        this.amplitudeMag = 0
+        this.pastNoteIndex = 0
+        this.changeNoteAmplitude()
+
+        // 动态音符分析
+        if (this.enableDynamicAnalysis) {
           this.decodedNotes = this.analyzeDynamicNotes(this.decodedNotes)
           this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
-          console.log('动态音符统计:', this.dynamicStats)
-        } catch (error) {
-          console.error('动态音符分析失败:', error)
         }
+
+        // 显示音符并保存到数据库
+        this.showProgressDialog = false
+        this.showNotes()
+
+        songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
+        this.getAnalysizedSongList()
+
+      } catch (error) {
+        console.error('音高分析失败:', error)
+        this.$notify?.({
+          type: 'error',
+          title: '分析失败',
+          message: error.message || '音高分析过程中发生错误'
+        })
+      } finally {
+        // 无论成功还是失败，都关闭进度对话框
+        this.showProgressDialog = false
+        this.analysisProgress = 0
       }
-      
-      this.processStr = ''
-      songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
-      this.getAnalysizedSongList()      
-      this.showNotes()
     },
     //扩大音符强度
     changeNoteAmplitude() {
