@@ -135,7 +135,7 @@
     </div>
 
     <!-- 动态音符分析按钮 -->
-    <div class="absolute bottom-44 left-4 z-20">
+    <div class="absolute bottom-44 left-4 z-20 flex flex-col gap-2">
       <button
         @click="showDynamicInfoDialog = !showDynamicInfoDialog"
         class="bg-orange-300 w-14 h-14 text-white rounded-full border-[3.5px] border-[#6e6e96]  shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
@@ -148,12 +148,14 @@
       :show="showDynamicInfoDialog"
       :stats="dynamicStats"
       :current-scheme="colorScheme"
+      :filter-settings="filterSettings"
       @close="showDynamicInfoDialog = false"
-      @update:currentScheme="updateColorScheme" />
+      @update:currentScheme="updateColorScheme"
+      @update:filterSettings="updateFilterSettings" />
 
     <!-- 分析进度对话框 -->
     <CustomProgressNotification
-      v-if="showProgressDialog"
+      :show="showProgressDialog"
       :title="progressTitle"
       :message="progressMessage"
       :progress="analysisProgress"
@@ -172,6 +174,9 @@ import SoundTagger from '@/js/SoundTagger.js'
 import DynamicInfoDialog from '@/components/DynamicInfoDialog.vue'
 import CustomProgressNotification from '@/components/CustomProgressNotification.vue'
 import { MusicAnalysis, MusicNote } from '@/components/icons'
+import { filterNotes } from '@/js/noteFilter.js'
+import { mergeNotes } from '@/js/noteMerger.js'
+import { loadConfig, saveConfig, DEFAULT_FILTER_SETTINGS } from '@/js/configManager.js'
 
 export default {
   name: 'SongPitch',
@@ -251,8 +256,10 @@ export default {
       forthBlack: (5/7 - 1/28) * 100,   // g#音符的left值
       fifthBlack: (6/7 - 1/28) * 100,   // a#音符的left值
       octaveNum: 6,     // 八度的个数
-      lowestPitch: 24,  // 最低音符的工业数字 
-      decodedNotes: [],
+      lowestPitch: 24,  // 最低音符的工业数字
+      rawNotes: [],     // 原始音符数据（不可变）
+      decodedNotes: [], // 当前显示的音符（过滤/合并后）
+      filterSettings: { ...DEFAULT_FILTER_SETTINGS }, // 过滤设置
       playTime: 0,
       timeInterval: null,
       songFile: null,
@@ -263,7 +270,7 @@ export default {
       chosenFile: false, //仅用于记录当前songFile是否是上传文件
       noteAreaWidth: 0,
       noteAreaHeight: 0,
-      showingSecond: 5,  //要在屏幕上显示从当前位置往后“多少”秒的音符
+      showingSecond: 5,  //要在屏幕上显示从当前位置往后”多少”秒的音符
       secondLength: 1,  //每一秒对应在canvas中的长度，用于约束音符的长度
       amplitudeMag: 0,
       lastPastNoteIndex: 0, //记录已经播放过的音符中最后一个的下标
@@ -276,7 +283,7 @@ export default {
       showDynamicInfoDialog: false, // 是否显示动态音符信息弹窗
       showProgressDialog: false, // 是否显示分析进度对话框
       analysisProgress: 0, // 分析进度（0-100）
-      colorScheme: localStorage.getItem('colorScheme') || 'sunset', // 颜色方案
+      colorScheme: loadConfig().colorScheme || 'sunset', // 颜色方案
       colorSchemes: { // 颜色方案配置
         ocean: {
           dynamic: '#0EA5E9',
@@ -398,7 +405,7 @@ export default {
         // 步骤1: 加载模型
         const model = await tf.loadGraphModel(`/model.json`)
 
-        // 步骤2: 重采样音频
+        // 步骤2: 重采样音频（这会 detach songBuffer）
         const renderedBuffer = await this.resampleAudioBuffer(songBuffer)
 
         // 步骤3: 创建 BasicPitch 实例
@@ -419,27 +426,27 @@ export default {
 
         // 步骤5: Worker 后处理（80-95%）
         this.analysisProgress = 82
-        this.decodedNotes = await this.processNotesWithWorker(frames, onsets, contours, (step, progress) => {
+        const rawNotes = await this.processNotesWithWorker(frames, onsets, contours, (step, progress) => {
           this.analysisProgress = 82 + progress * 0.13
         })
 
-        // 步骤6: 计算音符强度（95-100%）
-        this.analysisProgress = 95
-        this.amplitudeMag = 0
-        this.pastNoteIndex = 0
-        this.changeNoteAmplitude()
+        // 步骤6: 存储原始音符数据
+        this.rawNotes = rawNotes
 
-        // 动态音符分析
+        // 步骤7: 动态音符分析（在原始数据上）
         if (this.enableDynamicAnalysis) {
-          this.decodedNotes = this.analyzeDynamicNotes(this.decodedNotes)
-          this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
+          this.rawNotes = this.analyzeDynamicNotes(this.rawNotes)
         }
+
+        // 步骤8: 应用过滤设置并更新显示
+        this.analysisProgress = 98
+        this.updateDisplayNotes()
 
         // 显示音符并保存到数据库
         this.showProgressDialog = false
         this.showNotes()
 
-        songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
+        await songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
         this.getAnalysizedSongList()
 
       } catch (error) {
@@ -500,21 +507,28 @@ export default {
           }
         }
       }
-      
-      let i=this.lastPastNoteIndex
+
+      // 修复：每次都从头开始遍历，避免跳过未结束的长音符
+      // 因为音符是按开始时间排序的，不是按结束时间排序的
+      let i = 0
+      let newLastPastIndex = 0
       while(this.decodedNotes.length > i) {
         const singleNote = this.decodedNotes[i]
-        if(this.playTime > (singleNote.startTimeSeconds+singleNote.durationSeconds)) {  //得到目前最后一个显示完毕的音符的下标
-          this.lastPastNoteIndex = i
-        } else {  //得到那些在当前时间时未播放完的音符
-          if(singleNote.startTimeSeconds-this.playTime < 10) {   //只显示当前时间往后10s范围内的音符
+        const noteEndTime = singleNote.startTimeSeconds + singleNote.durationSeconds
+
+        if(this.playTime > noteEndTime) {  // 音符已结束
+          newLastPastIndex = i  // 记录最后一个已结束音符的索引
+        } else {  // 音符未结束或即将开始
+          if(singleNote.startTimeSeconds - this.playTime < 10) {   // 只显示当前时间往后10s范围内的音符
             this.drawNote(singleNote)
           } else {
-            break
+            break  // 后面的音符都在10秒之后，停止遍历
           }
         }
         i++
       }
+      // 遍历结束后更新 lastPastNoteIndex
+      this.lastPastNoteIndex = newLastPastIndex
     },
     drawNote(singleNote) {
       // 计算基于音量的透明度（音量越小越淡）
@@ -614,9 +628,100 @@ export default {
      */
     updateColorScheme(scheme) {
       this.colorScheme = scheme;
-      localStorage.setItem('colorScheme', scheme);
+      // 保存到配置
+      const config = loadConfig();
+      config.colorScheme = scheme;
+      saveConfig(config);
       // 重新绘制音符
       this.showNotes(false);
+    },
+
+    /**
+     * 更新过滤设置（带防抖）
+     * @param {Object} settings - 新的过滤设置
+     */
+    updateFilterSettings(settings) {
+      // 检查是否有实际变化
+      if (JSON.stringify(this.filterSettings) === JSON.stringify(settings)) {
+        return;
+      }
+      this.filterSettings = { ...settings };
+      // 使用防抖避免频繁更新
+      if (this._updateDisplayTimeout) {
+        clearTimeout(this._updateDisplayTimeout);
+      }
+      this._updateDisplayTimeout = setTimeout(() => {
+        this.updateDisplayNotes();
+      }, 100);
+    },
+
+    /**
+     * 根据过滤设置更新显示的音符
+     */
+    updateDisplayNotes() {
+      if (!this.rawNotes || this.rawNotes.length === 0) {
+        return;
+      }
+      let notes = [...this.rawNotes];
+
+      // 注意处理顺序：
+      // - 开启合并时：先合并，再过滤（让短音符有机会通过合并变长）
+      // - 未开启合并：直接过滤
+      if (this.filterSettings.enableMerge) {
+        // 1. 先合并相邻音符
+        notes = mergeNotes(notes, this.filterSettings.mergeGap);
+        // 2. 再过滤短音符和低置信度音符
+        notes = filterNotes(notes, this.filterSettings);
+      } else {
+        // 未开启合并，直接过滤
+        notes = filterNotes(notes, this.filterSettings);
+      }
+
+      // 3. 计算显示参数
+      this.decodedNotes = this.changeNoteAmplitudeForNotes(notes);
+
+      // 4. 更新动态音符统计
+      if (this.enableDynamicAnalysis) {
+        this.dynamicStats = this.getDynamicStatistics(this.decodedNotes);
+      }
+
+      // 5. 重置播放索引并重新绘制
+      this.lastPastNoteIndex = 0;
+      this.showNotes();
+    },
+
+    /**
+     * 为音符数组计算显示参数
+     * @param {Array} notes - 音符数组
+     * @returns {Array} 处理后的音符数组
+     */
+    changeNoteAmplitudeForNotes(notes) {
+      if (notes.length === 0) return notes;
+
+      // 计算最大振幅
+      let maxAmplitude = 0;
+      notes.forEach(note => {
+        if (note.amplitude > maxAmplitude) {
+          maxAmplitude = note.amplitude;
+        }
+      });
+
+      const magnification = maxAmplitude > 0 ? 1 / maxAmplitude : 1;
+
+      // 计算显示参数
+      return notes.map(note => {
+        const octave = Math.floor((note.pitchMidi - this.lowestPitch) / 12);
+        const scale = (note.pitchMidi - this.lowestPitch) % 12;
+
+        return {
+          ...note,
+          amplitude: note.amplitude * magnification,
+          x: octave / this.octaveNum + this.getScaleLeft(scale),
+          width: 1 / (this.octaveNum * 18),
+          y: note.startTimeSeconds,
+          height: note.durationSeconds
+        };
+      });
     },
 
     /**
@@ -848,6 +953,15 @@ export default {
         this.chosenFile = true
         // 创建一个URL对象，指向选择的文件
         this.setAudioFile(files[0])
+
+        // 让分析面板持续显示3秒，方便用户点击"开始分析"
+        this.isHovered = true
+        if (this._hoverTimeout) {
+          clearTimeout(this._hoverTimeout)
+        }
+        this._hoverTimeout = setTimeout(() => {
+          this.isHovered = false
+        }, 3000)
       }
     },
     setAudioFile(file) {
@@ -865,24 +979,24 @@ export default {
     },
     showSong(song) {
       this.setAudioFile(song.song)
-      this.decodedNotes = JSON.parse(song.notesStr)
+      const notes = JSON.parse(song.notesStr)
+
+      // 设置原始音符数据（用于过滤功能）
+      this.rawNotes = notes
       this.amplitudeMag = 1 //选择已解析的歌曲，无需再进行强度放大
-      this.pastNoteIndex = 0
-      
+      this.lastPastNoteIndex = 0
+
       // 如果启用动态音符分析且音符还没有标记，则进行分析
-      if (this.enableDynamicAnalysis && this.decodedNotes.length > 0 && this.decodedNotes[0].isDynamic === undefined) {
+      if (this.enableDynamicAnalysis && notes.length > 0 && notes[0].isDynamic === undefined) {
         try {
-          this.decodedNotes = this.analyzeDynamicNotes(this.decodedNotes)
-          this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
+          this.rawNotes = this.analyzeDynamicNotes(this.rawNotes)
         } catch (error) {
           console.error('动态音符分析失败:', error)
         }
-      } else if (this.decodedNotes.length > 0 && this.decodedNotes[0].isDynamic !== undefined) {
-        // 如果已有标记，更新统计信息
-        this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
       }
-      
-      this.showNotes()
+
+      // 应用过滤设置并更新显示（会设置 decodedNotes）
+      this.updateDisplayNotes()
     },
     deleteSong(songName, index) {
       let that = this
@@ -916,23 +1030,18 @@ export default {
       noteCanvas.width = this.noteAreaWidth
       noteCanvas.height = this.noteAreaHeight
       this.secondLength = this.noteAreaHeight/this.showingSecond
-
-      // 重新初始化渲染器（如果已存在）
-      if (this.canvasRenderer) {
-        this.initCanvasRenderer();
-      }
     }
   },
   mounted() {
     this.getAnalysizedSongList()
-    
+
     // 初始化声音标签分析器
     this.soundTagger = new SoundTagger()
-    
+
     // 使用 nextTick 确保 DOM 完全渲染后再设置 canvas
     this.$nextTick(() => {
       this.setCanvasWH()
-      
+
       // 获取 canvas context
       const c = document.getElementById("note-canvas")
       if (c) {

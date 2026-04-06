@@ -235,6 +235,7 @@
 
 <script>
 import { useAuthStore } from '@/store/modules/auth'
+import { loadConfig, saveConfig } from '@/js/configManager.js'
 
 export default {
   name: 'NavigationBar',
@@ -272,7 +273,10 @@ export default {
     selectLanguage(lang) {
       this.language = lang
       this.$i18n.locale = lang
-      localStorage.setItem('language', lang)
+      // 保存到配置
+      const config = loadConfig()
+      config.language = lang
+      saveConfig(config)
       this.showLangMenu = false
     },
     toggleUserMenu() {
@@ -296,7 +300,9 @@ export default {
     }
   },
   mounted() {
-    this.language = localStorage.getItem('language') || 'zh'
+    // 从配置加载语言设置
+    const config = loadConfig()
+    this.language = config.language || 'zh'
 
     // 点击外部关闭菜单
     document.addEventListener('click', this.handleClickOutside)

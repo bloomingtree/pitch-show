@@ -11,6 +11,7 @@ import 'notivue/animations.css'
 import { createI18n } from 'vue-i18n'
 import zh from '@/i18n/langs/zh.json'
 import en from '@/i18n/langs/en.json'
+import { loadConfig } from './js/configManager.js'
 
 const app = createApp(App)
 const notivue = createNotivue()
@@ -19,13 +20,14 @@ app.use(router)
 app.use(pinia)
 app.use(notivue)
 const navLang = navigator.language;    //判断当前浏览器使用的语言
+const config = loadConfig()
 const i18n = createI18n({
-    locale: localStorage.getItem('language') || navLang.split('-')[0] || 'zh',
+    locale: config.language || navLang.split('-')[0] || 'zh',
     messages: {
         zh,
         en
     }
-})  
+})
 app.use(i18n)
 const res = songDB.init()
 res.then(()=> {

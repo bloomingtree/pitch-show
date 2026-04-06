@@ -99,11 +99,10 @@ export default {
     waveNameMap: {
       type: Object,
       default: () => ({
-        'drums': this.$t.waveformPlayer.tracks.drums,
-        'bass': this.$t.waveformPlayer.tracks.bass,
-        'other': this.$t.waveformPlayer.tracks.other,
-        'vocals': this.$t.waveformPlayer.tracks.vocals,
-
+        'drums': 'Drums',
+        'bass': 'Bass',
+        'other': 'Other',
+        'vocals': 'Vocals'
       })
     },
     waveBgMap: {
@@ -264,7 +263,7 @@ export default {
       } catch (error) {
         console.error('播放失败:', error);
         push.error({
-          title: this.$t.waveformPlayer.playFailed,
+          title: this.$t('mainView.waveformPlayer.playFailed'),
           description: error.message,
           duration: 3000,
         });
@@ -386,8 +385,8 @@ export default {
         });
         
         push.success({
-          title: this.$t.waveformPlayer.downloadComplete,
-          description: this.$t.waveformPlayer.downloadCompleteDescription,
+          title: this.$t('mainView.waveformPlayer.downloadComplete'),
+          description: this.$t('mainView.waveformPlayer.downloadCompleteDescription'),
           duration: 3000,
         });
         
@@ -395,7 +394,7 @@ export default {
       } catch (error) {
         console.error('下载失败:', error);
         push.error({
-          title: this.$t.waveformPlayer.downloadFailed,
+          title: this.$t('mainView.waveformPlayer.downloadFailed'),
           description: error.message,
           duration: 3000,
         });
@@ -486,8 +485,8 @@ export default {
       this.$emit('delete-all');
       
       push.success({
-        title: this.$t.waveformPlayer.cleaned,
-        description: this.$t.waveformPlayer.cleanedDescription,
+        title: this.$t('mainView.waveformPlayer.cleaned'),
+        description: this.$t('mainView.waveformPlayer.cleanedDescription'),
         duration: 2000,
       });
     }
