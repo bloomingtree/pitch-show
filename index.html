@@ -50,17 +50,15 @@
     <meta name="msvalidate.01" content="F736132C8F67BF15FB10217FD4051BB4" />
 
     <!-- Umami Analytics (仅生产环境) -->
-    <script type="module">
+    <script>
       (function() {
-        // 开发环境检测：本地开发或 dev/prod 模式判断
-        const isDev = import.meta.env.DEV ||
-                     window.location.hostname === 'localhost' ||
-                     window.location.hostname === '127.0.0.1';
+        var isDev = window.location.hostname === 'localhost' ||
+                   window.location.hostname === '127.0.0.1';
         if (!isDev) {
-          const script = document.createElement('script');
+          var script = document.createElement('script');
           script.defer = true;
           script.src = 'https://analytics.notalabs.cn/script.js';
-          script.setAttribute('data-website-id', '4e458153-d7b4-4fc7-ab6c-9487f4dcb978');
+          script.setAttribute('data-website-id', 'e9aba103-ab52-463e-99c1-9fb7f2498000');
           document.head.appendChild(script);
         }
       })();
