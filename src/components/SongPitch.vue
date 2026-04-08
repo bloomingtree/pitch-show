@@ -30,7 +30,7 @@
         <div class="px-3 rounded overflow-y-scroll flex1">
           <div v-for="(song, index) in analyzedSong" :key="index" class="border-b py-1">
             {{song.name}}
-            <button @click="showSong(song)" 
+            <button @click="showSong(song)"
             class="ml-1 p-1 rounded shadow-lg bg-amber-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.showButton') }}</button>
             <button @click="deleteSong(song.name, index)"
             class="ml-1 p-1 rounded shadow-lg bg-stone-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.deleteButton') }}</button>
@@ -65,6 +65,53 @@
         @mouseleave="handleCanvasMouseLeave"
         @click="handleCanvasClick">
       </canvas>
+
+      <!-- 空状态引导：列表为空且未加载音符时显示 -->
+      <div
+        v-if="analyzedSong.length === 0 && decodedNotes.length === 0 && !showProgressDialog"
+        class="empty-guide"
+        @click="loadDemoSong"
+        style="transform: rotateX(180deg);">
+        <div class="empty-guide-staff">
+          <svg viewBox="0 0 320 130" xmlns="http://www.w3.org/2000/svg">
+            <g stroke="#c4a882" stroke-width="1">
+              <line x1="0" y1="20" x2="320" y2="20"/>
+              <line x1="0" y1="36" x2="320" y2="36"/>
+              <line x1="0" y1="52" x2="320" y2="52"/>
+              <line x1="0" y1="68" x2="320" y2="68"/>
+              <line x1="0" y1="84" x2="320" y2="84"/>
+            </g>
+            <text x="6" y="68" font-size="52" font-family="serif" fill="#5a3e2b" opacity="0.7">&#119070;</text>
+            <g class="empty-staff-notes">
+              <ellipse cx="68" cy="52" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,68,52)"/>
+              <line x1="74" y1="52" x2="74" y2="26" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="88" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,88,44)"/>
+              <line x1="94" y1="44" x2="94" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="108" cy="36" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,108,36)"/>
+              <line x1="114" y1="36" x2="114" y2="10" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="128" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,128,44)"/>
+              <line x1="134" y1="44" x2="134" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="152" cy="52" rx="7" ry="5.5" fill="none" stroke="#D94E1F" stroke-width="2" transform="rotate(-15,152,52)"/>
+              <line x1="158" y1="52" x2="158" y2="26" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="176" cy="60" rx="7" ry="5.5" fill="none" stroke="#FF6B35" stroke-width="2" transform="rotate(-15,176,60)"/>
+              <line x1="182" y1="60" x2="182" y2="34" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="200" cy="44" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,200,44)"/>
+              <line x1="206" y1="44" x2="206" y2="14" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="218" cy="36" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,218,36)"/>
+              <line x1="224" y1="36" x2="224" y2="10" stroke="#D94E1F" stroke-width="1.8"/>
+              <line x1="206" y1="14" x2="224" y2="10" stroke="#D94E1F" stroke-width="2.5"/>
+              <ellipse cx="240" cy="52" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,240,52)"/>
+              <line x1="246" y1="52" x2="246" y2="26" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="258" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,258,44)"/>
+              <line x1="264" y1="44" x2="264" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+              <line x1="246" y1="26" x2="264" y2="18" stroke="#FF6B35" stroke-width="2.5"/>
+              <ellipse cx="288" cy="52" rx="8" ry="6" fill="none" stroke="#D94E1F" stroke-width="2.5" transform="rotate(-15,288,52)"/>
+            </g>
+          </svg>
+        </div>
+        <p class="empty-guide-title">{{ $t('mainView.emptyGuide.title') }}</p>
+        <p class="empty-guide-sub">{{ $t('mainView.emptyGuide.subTitle') }}</p>
+      </div>
 
       <!-- 音符信息悬浮框 (Dev功能) -->
       <transition name="tooltip">
@@ -135,7 +182,7 @@
     </div>
 
     <!-- 动态音符分析按钮 -->
-    <div class="absolute bottom-44 left-4 z-20">
+    <div class="absolute bottom-44 left-4 z-20 flex flex-col gap-2">
       <button
         @click="showDynamicInfoDialog = !showDynamicInfoDialog"
         class="bg-orange-300 w-14 h-14 text-white rounded-full border-[3.5px] border-[#6e6e96]  shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
@@ -148,22 +195,35 @@
       :show="showDynamicInfoDialog"
       :stats="dynamicStats"
       :current-scheme="colorScheme"
+      :filter-settings="filterSettings"
       @close="showDynamicInfoDialog = false"
-      @update:currentScheme="updateColorScheme" />
-     
+      @update:currentScheme="updateColorScheme"
+      @update:filterSettings="updateFilterSettings" />
+
+    <!-- 分析进度对话框 -->
+    <CustomProgressNotification
+      :show="showProgressDialog"
+      :title="progressTitle"
+      :message="progressMessage"
+      :progress="analysisProgress"
+    />
+
   </div>
 </template>
 
 <script>
 import AudioPlayer from './AudioPlayer.vue'
-import { BasicPitch, noteFramesToTime, addPitchBendsToNoteEvents, outputToNotesPoly } from '@spotify/basic-pitch';
+import { BasicPitch } from '@spotify/basic-pitch';
 import * as tf from '@tensorflow/tfjs';
 import songDB from '@/store/Song'
 import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import SoundTagger from '@/js/SoundTagger.js'
 import DynamicInfoDialog from '@/components/DynamicInfoDialog.vue'
+import CustomProgressNotification from '@/components/CustomProgressNotification.vue'
 import { MusicAnalysis, MusicNote } from '@/components/icons'
-
+import { filterNotes } from '@/js/noteFilter.js'
+import { mergeNotes } from '@/js/noteMerger.js'
+import { loadConfig, saveConfig, DEFAULT_FILTER_SETTINGS } from '@/js/configManager.js'
 export default {
   name: 'SongPitch',
   props: {
@@ -173,6 +233,7 @@ export default {
     AudioPlayer,
     ShortcutHelp,
     DynamicInfoDialog,
+    CustomProgressNotification,
     MusicAnalysis,
     MusicNote
   },
@@ -209,6 +270,28 @@ export default {
       }
 
       return activeSet
+    },
+
+    /**
+     * 根据进度返回当前阶段的标题
+     */
+    progressTitle() {
+      if (this.analysisProgress < 80) {
+        return this.$t('mainView.listBar.analyzingTitle') || '正在分析音频'
+      } else {
+        return this.$t('mainView.listBar.processingTitle') || '正在处理音符'
+      }
+    },
+
+    /**
+     * 根据进度返回当前阶段的消息
+     */
+    progressMessage() {
+      if (this.analysisProgress < 80) {
+        return this.$t('mainView.listBar.analyzingMessage') || 'AI 正在识别音符，请稍候...'
+      } else {
+        return this.$t('mainView.listBar.processingMessage') || '正在整理和优化音符数据...'
+      }
     }
   },
   data() {
@@ -219,8 +302,10 @@ export default {
       forthBlack: (5/7 - 1/28) * 100,   // g#音符的left值
       fifthBlack: (6/7 - 1/28) * 100,   // a#音符的left值
       octaveNum: 6,     // 八度的个数
-      lowestPitch: 24,  // 最低音符的工业数字 
-      decodedNotes: [],
+      lowestPitch: 24,  // 最低音符的工业数字
+      rawNotes: [],     // 原始音符数据（不可变）
+      decodedNotes: [], // 当前显示的音符（过滤/合并后）
+      filterSettings: { ...DEFAULT_FILTER_SETTINGS }, // 过滤设置
       playTime: 0,
       timeInterval: null,
       songFile: null,
@@ -231,7 +316,7 @@ export default {
       chosenFile: false, //仅用于记录当前songFile是否是上传文件
       noteAreaWidth: 0,
       noteAreaHeight: 0,
-      showingSecond: 5,  //要在屏幕上显示从当前位置往后“多少”秒的音符
+      showingSecond: 5,  //要在屏幕上显示从当前位置往后”多少”秒的音符
       secondLength: 1,  //每一秒对应在canvas中的长度，用于约束音符的长度
       amplitudeMag: 0,
       lastPastNoteIndex: 0, //记录已经播放过的音符中最后一个的下标
@@ -242,7 +327,9 @@ export default {
       enableDynamicAnalysis: true, // 是否启用动态音符分析
       dynamicStats: null, // 动态音符统计信息
       showDynamicInfoDialog: false, // 是否显示动态音符信息弹窗
-      colorScheme: localStorage.getItem('colorScheme') || 'sunset', // 颜色方案
+      showProgressDialog: false, // 是否显示分析进度对话框
+      analysisProgress: 0, // 分析进度（0-100）
+      colorScheme: loadConfig().colorScheme || 'sunset', // 颜色方案
       colorSchemes: { // 颜色方案配置
         ocean: {
           dynamic: '#0EA5E9',
@@ -264,6 +351,53 @@ export default {
     }
   },
   methods: {
+    /**
+     * 使用 Worker 进行音符后处理（转换 + 弯音 + 排序），避免阻塞主线程
+     * @param {Array} frames - 帧数据
+     * @param {Array} onsets - 起始点数据
+     * @param {Array} contours - 轮廓数据
+     * @param {Function} onProgress - 进度回调
+     * @returns {Promise<Array>} 处理后的音符数组（包含弯音信息）
+     */
+    processNotesWithWorker(frames, onsets, contours, onProgress = null) {
+      return new Promise((resolve, reject) => {
+        // 创建 Worker
+        const worker = new Worker(new URL('@/js/note-processor-worker.js', import.meta.url), { type: 'module' })
+
+        worker.onmessage = (e) => {
+          const { type, step, progress, notes, error } = e.data
+
+          if (type === 'progress') {
+            if (onProgress) onProgress(step, progress)
+          } else if (type === 'complete') {
+            worker.terminate()
+            resolve(notes)
+          } else if (type === 'error') {
+            worker.terminate()
+            reject(new Error(error))
+          }
+        }
+
+        worker.onerror = (error) => {
+          worker.terminate()
+          reject(error)
+        }
+
+        // 发送处理请求
+        worker.postMessage({
+          type: 'process',
+          data: {
+            frames,
+            onsets,
+            contours,
+            onsetThreshold: 0.25,
+            frameThreshold: 0.25,
+            minNoteLength: 5
+          }
+        })
+      })
+    },
+
     //将采样率下降到22050
     async resampleAudioBuffer(songBuffer) {
       const wavBuffer = songBuffer
@@ -308,58 +442,71 @@ export default {
       const frames = []
       const onsets = []
       const contours = []
-      const model = await tf.loadGraphModel(`/model.json`)
-      let renderedBuffer = await this.resampleAudioBuffer(songBuffer)
-      const basicPitch = new BasicPitch(model);
-      await basicPitch.evaluateModel(
-        renderedBuffer,
-        (f, o, c) => {
-          frames.push(...f);
-          onsets.push(...o);
-          contours.push(...c);
-        },
-        (p) => {
-          p *= 100
-          p = p.toFixed(2)
-          that.processStr = p + '%'
-        }
-      );
-      this.processStr = '正在获取音符，请耐心等待'
-      const notes = noteFramesToTime(
-        addPitchBendsToNoteEvents(
-          contours,
-          outputToNotesPoly(frames, onsets, 0.25, 0.25, 5),
-        ),
-      )
-      this.decodedNotes = notes.sort((a,b)=> {
-        return (a.startTimeSeconds+a.durationSeconds) - (b.startTimeSeconds+b.durationSeconds)  //按照结束时间由前到后排序
-      })
-      
-      
-      this.amplitudeMag = 0 // 修改强度扩大倍数为默认值
-      this.pastNoteIndex = 0
 
-      this.changeNoteAmplitude()
-      
-      // 动态音符分析
-      if (this.enableDynamicAnalysis) {
-        this.processStr = '正在进行动态音符分析...'
-        try {
-          if (!this.soundTagger) {
-            this.soundTagger = new SoundTagger()
+      // 显示进度对话框
+      this.showProgressDialog = true
+      this.analysisProgress = 0
+
+      try {
+        // 步骤1: 加载模型
+        const model = await tf.loadGraphModel(`/model.json`)
+
+        // 步骤2: 重采样音频（这会 detach songBuffer）
+        const renderedBuffer = await this.resampleAudioBuffer(songBuffer)
+
+        // 步骤3: 创建 BasicPitch 实例
+        const basicPitch = new BasicPitch(model);
+
+        // 步骤4: 模型评估（0-80%）
+        await basicPitch.evaluateModel(
+          renderedBuffer,
+          (f, o, c) => {
+            frames.push(...f);
+            onsets.push(...o);
+            contours.push(...c);
+          },
+          (p) => {
+            that.analysisProgress = p * 80
           }
-          this.decodedNotes = this.analyzeDynamicNotes(this.decodedNotes)
-          this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
-          console.log('动态音符统计:', this.dynamicStats)
-        } catch (error) {
-          console.error('动态音符分析失败:', error)
+        );
+
+        // 步骤5: Worker 后处理（80-95%）
+        this.analysisProgress = 82
+        const rawNotes = await this.processNotesWithWorker(frames, onsets, contours, (step, progress) => {
+          this.analysisProgress = 82 + progress * 0.13
+        })
+
+        // 步骤6: 存储原始音符数据
+        this.rawNotes = rawNotes
+
+        // 步骤7: 动态音符分析（在原始数据上）
+        if (this.enableDynamicAnalysis) {
+          this.rawNotes = this.analyzeDynamicNotes(this.rawNotes)
         }
+
+        // 步骤8: 应用过滤设置并更新显示
+        this.analysisProgress = 98
+        this.updateDisplayNotes()
+
+        // 显示音符并保存到数据库
+        this.showProgressDialog = false
+        this.showNotes()
+
+        await songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
+        this.getAnalysizedSongList()
+
+      } catch (error) {
+        console.error('音高分析失败:', error)
+        this.$notify?.({
+          type: 'error',
+          title: '分析失败',
+          message: error.message || '音高分析过程中发生错误'
+        })
+      } finally {
+        // 无论成功还是失败，都关闭进度对话框
+        this.showProgressDialog = false
+        this.analysisProgress = 0
       }
-      
-      this.processStr = ''
-      songDB.add(this.songFile.name, this.songFile, this.decodedNotes)
-      this.getAnalysizedSongList()      
-      this.showNotes()
     },
     //扩大音符强度
     changeNoteAmplitude() {
@@ -406,21 +553,28 @@ export default {
           }
         }
       }
-      
-      let i=this.lastPastNoteIndex
+
+      // 修复：每次都从头开始遍历，避免跳过未结束的长音符
+      // 因为音符是按开始时间排序的，不是按结束时间排序的
+      let i = 0
+      let newLastPastIndex = 0
       while(this.decodedNotes.length > i) {
         const singleNote = this.decodedNotes[i]
-        if(this.playTime > (singleNote.startTimeSeconds+singleNote.durationSeconds)) {  //得到目前最后一个显示完毕的音符的下标
-          this.lastPastNoteIndex = i
-        } else {  //得到那些在当前时间时未播放完的音符
-          if(singleNote.startTimeSeconds-this.playTime < 10) {   //只显示当前时间往后10s范围内的音符
+        const noteEndTime = singleNote.startTimeSeconds + singleNote.durationSeconds
+
+        if(this.playTime > noteEndTime) {  // 音符已结束
+          newLastPastIndex = i  // 记录最后一个已结束音符的索引
+        } else {  // 音符未结束或即将开始
+          if(singleNote.startTimeSeconds - this.playTime < 10) {   // 只显示当前时间往后10s范围内的音符
             this.drawNote(singleNote)
           } else {
-            break
+            break  // 后面的音符都在10秒之后，停止遍历
           }
         }
         i++
       }
+      // 遍历结束后更新 lastPastNoteIndex
+      this.lastPastNoteIndex = newLastPastIndex
     },
     drawNote(singleNote) {
       // 计算基于音量的透明度（音量越小越淡）
@@ -520,9 +674,100 @@ export default {
      */
     updateColorScheme(scheme) {
       this.colorScheme = scheme;
-      localStorage.setItem('colorScheme', scheme);
+      // 保存到配置
+      const config = loadConfig();
+      config.colorScheme = scheme;
+      saveConfig(config);
       // 重新绘制音符
       this.showNotes(false);
+    },
+
+    /**
+     * 更新过滤设置（带防抖）
+     * @param {Object} settings - 新的过滤设置
+     */
+    updateFilterSettings(settings) {
+      // 检查是否有实际变化
+      if (JSON.stringify(this.filterSettings) === JSON.stringify(settings)) {
+        return;
+      }
+      this.filterSettings = { ...settings };
+      // 使用防抖避免频繁更新
+      if (this._updateDisplayTimeout) {
+        clearTimeout(this._updateDisplayTimeout);
+      }
+      this._updateDisplayTimeout = setTimeout(() => {
+        this.updateDisplayNotes();
+      }, 100);
+    },
+
+    /**
+     * 根据过滤设置更新显示的音符
+     */
+    updateDisplayNotes() {
+      if (!this.rawNotes || this.rawNotes.length === 0) {
+        return;
+      }
+      let notes = [...this.rawNotes];
+
+      // 注意处理顺序：
+      // - 开启合并时：先合并，再过滤（让短音符有机会通过合并变长）
+      // - 未开启合并：直接过滤
+      if (this.filterSettings.enableMerge) {
+        // 1. 先合并相邻音符
+        notes = mergeNotes(notes, this.filterSettings.mergeGap);
+        // 2. 再过滤短音符和低置信度音符
+        notes = filterNotes(notes, this.filterSettings);
+      } else {
+        // 未开启合并，直接过滤
+        notes = filterNotes(notes, this.filterSettings);
+      }
+
+      // 3. 计算显示参数
+      this.decodedNotes = this.changeNoteAmplitudeForNotes(notes);
+
+      // 4. 更新动态音符统计
+      if (this.enableDynamicAnalysis) {
+        this.dynamicStats = this.getDynamicStatistics(this.decodedNotes);
+      }
+
+      // 5. 重置播放索引并重新绘制
+      this.lastPastNoteIndex = 0;
+      this.showNotes();
+    },
+
+    /**
+     * 为音符数组计算显示参数
+     * @param {Array} notes - 音符数组
+     * @returns {Array} 处理后的音符数组
+     */
+    changeNoteAmplitudeForNotes(notes) {
+      if (notes.length === 0) return notes;
+
+      // 计算最大振幅
+      let maxAmplitude = 0;
+      notes.forEach(note => {
+        if (note.amplitude > maxAmplitude) {
+          maxAmplitude = note.amplitude;
+        }
+      });
+
+      const magnification = maxAmplitude > 0 ? 1 / maxAmplitude : 1;
+
+      // 计算显示参数
+      return notes.map(note => {
+        const octave = Math.floor((note.pitchMidi - this.lowestPitch) / 12);
+        const scale = (note.pitchMidi - this.lowestPitch) % 12;
+
+        return {
+          ...note,
+          amplitude: note.amplitude * magnification,
+          x: octave / this.octaveNum + this.getScaleLeft(scale),
+          width: 1 / (this.octaveNum * 18),
+          y: note.startTimeSeconds,
+          height: note.durationSeconds
+        };
+      });
     },
 
     /**
@@ -754,9 +999,19 @@ export default {
         this.chosenFile = true
         // 创建一个URL对象，指向选择的文件
         this.setAudioFile(files[0])
+
+        // 让分析面板持续显示3秒，方便用户点击"开始分析"
+        this.isHovered = true
+        if (this._hoverTimeout) {
+          clearTimeout(this._hoverTimeout)
+        }
+        this._hoverTimeout = setTimeout(() => {
+          this.isHovered = false
+        }, 3000)
       }
     },
     setAudioFile(file) {
+      if (!file) return
       const fileURL = URL.createObjectURL(file)
       this.songFile = file
       // 设置audio元素的src属性为文件的URL
@@ -770,25 +1025,27 @@ export default {
       this.showNotes(isManual)
     },
     showSong(song) {
-      this.setAudioFile(song.song)
-      this.decodedNotes = JSON.parse(song.notesStr)
+      if (song.song) {
+        this.setAudioFile(song.song)
+      }
+      const notes = JSON.parse(song.notesStr)
+
+      // 设置原始音符数据（用于过滤功能）
+      this.rawNotes = notes
       this.amplitudeMag = 1 //选择已解析的歌曲，无需再进行强度放大
-      this.pastNoteIndex = 0
-      
+      this.lastPastNoteIndex = 0
+
       // 如果启用动态音符分析且音符还没有标记，则进行分析
-      if (this.enableDynamicAnalysis && this.decodedNotes.length > 0 && this.decodedNotes[0].isDynamic === undefined) {
+      if (this.enableDynamicAnalysis && notes.length > 0 && notes[0].isDynamic === undefined) {
         try {
-          this.decodedNotes = this.analyzeDynamicNotes(this.decodedNotes)
-          this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
+          this.rawNotes = this.analyzeDynamicNotes(this.rawNotes)
         } catch (error) {
           console.error('动态音符分析失败:', error)
         }
-      } else if (this.decodedNotes.length > 0 && this.decodedNotes[0].isDynamic !== undefined) {
-        // 如果已有标记，更新统计信息
-        this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
       }
-      
-      this.showNotes()
+
+      // 应用过滤设置并更新显示（会设置 decodedNotes）
+      this.updateDisplayNotes()
     },
     deleteSong(songName, index) {
       let that = this
@@ -801,6 +1058,66 @@ export default {
       songDB.getAll().then(res=> {
       that.analyzedSong = res
     })
+    },
+    /**
+     * 加载示例歌曲：模拟分析流程，使用预置的音符数据
+     */
+    async loadDemoSong() {
+      this.showProgressDialog = true
+      this.analysisProgress = 0
+
+      try {
+        // 并行启动下载：音符数据 + 音频文件
+        const notesPromise = import('@/data/demoSongNotes.js')
+
+        // 使用 ReadableStream 跟踪音频下载进度
+        const audioResponse = await fetch('/demo-song.mp3')
+        const contentLength = parseInt(audioResponse.headers.get('content-length') || '0', 10)
+        const reader = audioResponse.body.getReader()
+        const chunks = []
+        let loaded = 0
+
+        // 阶段1: 下载 (0-80%)，进度反映真实下载量
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          chunks.push(value)
+          loaded += value.length
+          if (contentLength > 0) {
+            this.analysisProgress = Math.floor((loaded / contentLength) * 80)
+          }
+        }
+        this.analysisProgress = 80
+
+        // 阶段2: 后处理 (80-100%)
+        const { DEMO_NOTES } = await notesPromise
+        this.analysisProgress = 85
+
+        this.rawNotes = DEMO_NOTES.map(n => ({ ...n }))
+        this.updateDisplayNotes()
+        this.analysisProgress = 92
+
+        // 设置音频文件
+        const audioBlob = new Blob(chunks, { type: 'audio/mpeg' })
+        const audioFile = new File([audioBlob], 'demo-song.mp3', { type: 'audio/mpeg' })
+        this.setAudioFile(audioFile)
+        this.analysisProgress = 96
+
+        // 保存到 IndexedDB
+        const demoName = this.$t('infoView.demoSongName')
+        await songDB.add(demoName, this.songFile, this.decodedNotes)
+        this.getAnalysizedSongList()
+        this.analysisProgress = 100
+
+        await new Promise(r => setTimeout(r, 300))
+        this.showProgressDialog = false
+        this.analysisProgress = 0
+      } catch (error) {
+        console.error('加载示例歌曲失败:', error)
+      } finally {
+        this.showProgressDialog = false
+        this.analysisProgress = 0
+      }
     },
     setCanvasWH() {
       const canvasDiv = document.getElementById('canvasDiv')
@@ -822,27 +1139,28 @@ export default {
       noteCanvas.width = this.noteAreaWidth
       noteCanvas.height = this.noteAreaHeight
       this.secondLength = this.noteAreaHeight/this.showingSecond
-
-      // 重新初始化渲染器（如果已存在）
-      if (this.canvasRenderer) {
-        this.initCanvasRenderer();
-      }
     }
   },
   mounted() {
     this.getAnalysizedSongList()
-    
+
     // 初始化声音标签分析器
     this.soundTagger = new SoundTagger()
-    
+
     // 使用 nextTick 确保 DOM 完全渲染后再设置 canvas
     this.$nextTick(() => {
       this.setCanvasWH()
-      
+
       // 获取 canvas context
       const c = document.getElementById("note-canvas")
       if (c) {
         this.noteCtx = c.getContext("2d")
+      }
+
+      // 检查是否有待加载的示例歌曲
+      if (sessionStorage.getItem('pendingDemoSong') === 'true') {
+        sessionStorage.removeItem('pendingDemoSong')
+        this.$nextTick(() => this.loadDemoSong())
       }
     })
     
@@ -859,6 +1177,64 @@ export default {
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
+/* 空状态引导 */
+.empty-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+  margin-left: -120px;
+  margin-top: -60px;
+  width: 240px;
+  text-align: center;
+  cursor: pointer;
+  padding: 24px 20px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid #ffd9c4;
+  box-shadow: 0 8px 24px rgba(217, 78, 31, 0.1);
+  transition: all 0.3s ease;
+  z-index: 5;
+}
+.empty-guide:hover {
+  transform: rotateX(180deg) scale(1.04);
+  box-shadow: 0 12px 32px rgba(217, 78, 31, 0.18);
+}
+.empty-guide-staff {
+  width: 100%;
+  max-width: 280px;
+  background: linear-gradient(135deg, #fefcf8 0%, #f8f0e3 100%);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e8d5be;
+  margin-bottom: 12px;
+}
+.empty-guide-staff svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.empty-staff-notes {
+  animation: notesFadeIn 1s ease forwards;
+  opacity: 0;
+}
+@keyframes notesFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.empty-guide-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #D94E1F;
+  margin: 0 0 4px 0;
+}
+.empty-guide-sub {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+}
+
 h3 {
   margin: 40px 0 0;
 }

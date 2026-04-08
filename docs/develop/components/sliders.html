@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>滑动条组件示例 - 音乐工具 UI</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+      color: #fff;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 2rem;
+      font-weight: 600;
+      background: linear-gradient(90deg, #f97316, #fb923c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .section {
+      margin-bottom: 50px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .section-title {
+      font-size: 1.1rem;
+      color: #9ca3af;
+      margin-bottom: 24px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .slider-container {
+      margin-bottom: 24px;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .slider-label {
+      font-size: 14px;
+      color: #e5e7eb;
+      font-weight: 500;
+    }
+
+    .slider-value {
+      font-size: 14px;
+      color: #f97316;
+      font-weight: 600;
+      background: rgba(249, 115, 22, 0.1);
+      padding: 4px 10px;
+      border-radius: 6px;
+    }
+
+    .slider-help {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 8px;
+    }
+
+    /* ========== 基础滑动条 ========== */
+    .slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 6px;
+      background: #2d2d2d;
+      border-radius: 3px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #f97316;
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 2px 6px rgba(249, 115, 22, 0.4);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      box-shadow: 0 4px 12px rgba(249, 115, 22, 0.5);
+    }
+
+    .slider::-webkit-slider-thumb:active {
+      transform: scale(1.1);
+    }
+
+    .slider::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: #f97316;
+      border-radius: 50%;
+      cursor: pointer;
+      border: none;
+      box-shadow: 0 2px 6px rgba(249, 115, 22, 0.4);
+    }
+
+    /* ========== 带进度填充的滑动条 ========== */
+    .slider-filled {
+      position: relative;
+      height: 6px;
+      background: #2d2d2d;
+      border-radius: 3px;
+    }
+
+    .slider-filled-track {
+      position: absolute;
+      height: 100%;
+      background: linear-gradient(90deg, #f97316, #fb923c);
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
+    .slider-filled input[type="range"] {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      top: 0;
+      left: 0;
+    }
+
+    /* ========== 大号滑动条 ========== */
+    .slider-lg {
+      height: 8px;
+    }
+
+    .slider-lg::-webkit-slider-thumb {
+      width: 22px;
+      height: 22px;
+    }
+
+    .slider-lg::-moz-range-thumb {
+      width: 22px;
+      height: 22px;
+    }
+
+    /* ========== 渐变滑动条 ========== */
+    .slider-gradient {
+      background: linear-gradient(90deg, #ef4444 0%, #f59e0b 25%, #10b981 50%, #3b82f6 75%, #8b5cf6 100%);
+    }
+
+    /* ========== 玻璃态滑动条 ========== */
+    .slider-glass-container {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .slider-glass {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .slider-glass::-webkit-slider-thumb {
+      background: white;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* ========== 带刻度的滑动条 ========== */
+    .slider-ticks {
+      position: relative;
+    }
+
+    .slider-ticks-marks {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 8px;
+      padding: 0 4px;
+    }
+
+    .slider-ticks-mark {
+      font-size: 10px;
+      color: #6b7280;
+    }
+
+    /* ========== 范围选择器 ========== */
+    .range-container {
+      position: relative;
+      height: 6px;
+      background: #2d2d2d;
+      border-radius: 3px;
+      margin: 10px 0;
+    }
+
+    .range-track {
+      position: absolute;
+      height: 100%;
+      background: linear-gradient(90deg, #f97316, #fb923c);
+      border-radius: 3px;
+    }
+
+    .range-container input[type="range"] {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+
+    .range-container input[type="range"]::-webkit-slider-thumb {
+      pointer-events: auto;
+    }
+
+    /* ========== 音量滑动条（垂直） ========== */
+    .volume-vertical {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slider-vertical {
+      -webkit-appearance: slider-vertical;
+      appearance: slider-vertical;
+      writing-mode: bt-lr;
+      width: 6px;
+      height: 120px;
+      background: #2d2d2d;
+      border-radius: 3px;
+    }
+
+    /* ========== 进度条样式 ========== */
+    .progress-container {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .progress-time {
+      font-size: 12px;
+      color: #9ca3af;
+      min-width: 40px;
+    }
+
+    .progress-bar {
+      flex: 1;
+      height: 4px;
+      background: #2d2d2d;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #f97316, #fb923c);
+      transition: width 0.1s linear;
+    }
+
+    /* ========== 带输入框的滑动条 ========== */
+    .slider-with-input {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .slider-with-input .slider {
+      flex: 1;
+    }
+
+    .slider-input {
+      width: 70px;
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      color: white;
+      font-size: 14px;
+      text-align: center;
+      outline: none;
+    }
+
+    .slider-input:focus {
+      border-color: #f97316;
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.2);
+    }
+
+    .slider-unit {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    /* ========== 动画演示 ========== */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.6; }
+    }
+
+    .slider-animated::-webkit-slider-thumb {
+      animation: pulse 2s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎚️ 滑动条组件示例</h1>
+
+    <!-- 基础滑动条 -->
+    <div class="section">
+      <div class="section-title">基础滑动条</div>
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">音量</span>
+          <span class="slider-value" id="basic-value">50%</span>
+        </div>
+        <input type="range" class="slider" id="basic-slider" min="0" max="100" value="50"
+               oninput="document.getElementById('basic-value').textContent = this.value + '%'">
+      </div>
+    </div>
+
+    <!-- 带进度填充 -->
+    <div class="section">
+      <div class="section-title">带进度填充</div>
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">播放进度</span>
+          <span class="slider-value" id="progress-value">2:34 / 4:12</span>
+        </div>
+        <div class="slider-filled">
+          <div class="slider-filled-track" id="progress-track" style="width: 61%"></div>
+          <input type="range" class="slider" id="progress-slider" min="0" max="100" value="61"
+                 oninput="document.getElementById('progress-track').style.width = this.value + '%'; document.getElementById('progress-value').textContent = Math.floor(this.value * 4.12 / 100) + ':' + String(Math.floor(this.value * 2.52) % 60).padStart(2, '0')">
+        </div>
+        <div class="progress-container">
+          <span class="progress-time">0:00</span>
+          <div class="progress-bar">
+            <div class="progress-bar-fill" style="width: 61%"></div>
+          </div>
+          <span class="progress-time">4:12</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 尺寸变体 -->
+    <div class="section">
+      <div class="section-title">尺寸变体</div>
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">小号</span>
+        </div>
+        <input type="range" class="slider" min="0" max="100" value="30">
+      </div>
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">大号</span>
+        </div>
+        <input type="range" class="slider slider-lg" min="0" max="100" value="70">
+      </div>
+    </div>
+
+    <!-- 渐变滑动条 -->
+    <div class="section">
+      <div class="section-title">渐变滑动条（音高可视化）</div>
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">音高范围</span>
+          <span class="slider-value">C4 - C6</span>
+        </div>
+        <input type="range" class="slider slider-gradient" min="0" max="100" value="50">
+        <div class="slider-ticks-marks">
+          <span class="slider-ticks-mark">C2</span>
+          <span class="slider-ticks-mark">C3</span>
+          <span class="slider-ticks-mark">C4</span>
+          <span class="slider-ticks-mark">C5</span>
+          <span class="slider-ticks-mark">C6</span>
+          <span class="slider-ticks-mark">C7</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 玻璃态滑动条 -->
+    <div class="section">
+      <div class="section-title">玻璃态滑动条</div>
+      <div class="slider-glass-container">
+        <div class="slider-container">
+          <div class="slider-header">
+            <span class="slider-label">亮度</span>
+            <span class="slider-value">75%</span>
+          </div>
+          <input type="range" class="slider slider-glass" min="0" max="100" value="75">
+        </div>
+        <div class="slider-container">
+          <div class="slider-header">
+            <span class="slider-label">对比度</span>
+            <span class="slider-value">50%</span>
+          </div>
+          <input type="range" class="slider slider-glass" min="0" max="100" value="50">
+        </div>
+      </div>
+    </div>
+
+    <!-- 带刻度的滑动条 -->
+    <div class="section">
+      <div class="section-title">带刻度的滑动条</div>
+      <div class="slider-container slider-ticks">
+        <div class="slider-header">
+          <span class="slider-label">最短音符时长</span>
+          <span class="slider-value" id="duration-value">0.05 秒</span>
+        </div>
+        <input type="range" class="slider" id="duration-slider" min="0" max="100" value="5"
+               oninput="document.getElementById('duration-value').textContent = (this.value / 100).toFixed(2) + ' 秒'">
+        <div class="slider-ticks-marks">
+          <span class="slider-ticks-mark">0</span>
+          <span class="slider-ticks-mark">0.25</span>
+          <span class="slider-ticks-mark">0.50</span>
+          <span class="slider-ticks-mark">0.75</span>
+          <span class="slider-ticks-mark">1.00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 带输入框的滑动条 -->
+    <div class="section">
+      <div class="section-title">带输入框的滑动条</div>
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">合并间隔</span>
+        </div>
+        <div class="slider-with-input">
+          <input type="range" class="slider" id="merge-slider" min="0" max="500" value="50"
+                 oninput="document.getElementById('merge-input').value = (this.value / 1000).toFixed(2)">
+          <input type="number" class="slider-input" id="merge-input" value="0.05" min="0" max="0.5" step="0.01"
+                 oninput="document.getElementById('merge-slider').value = this.value * 1000">
+          <span class="slider-unit">秒</span>
+        </div>
+        <p class="slider-help">两个音符之间最大允许的静音间隔</p>
+      </div>
+    </div>
+
+    <!-- 范围选择器 -->
+    <div class="section">
+      <div class="section-title">范围选择器</div>
+      <div class="slider-container">
+        <div class="slider-header">
+          <span class="slider-label">显示时间范围</span>
+          <span class="slider-value" id="range-value">1:00 - 3:00</span>
+        </div>
+        <div class="range-container">
+          <div class="range-track" style="left: 20%; width: 40%"></div>
+          <input type="range" class="slider" min="0" max="100" value="20" style="z-index: 2;">
+          <input type="range" class="slider" min="0" max="100" value="60" style="z-index: 1;">
+        </div>
+        <div class="slider-ticks-marks">
+          <span class="slider-ticks-mark">0:00</span>
+          <span class="slider-ticks-mark">1:00</span>
+          <span class="slider-ticks-mark">2:00</span>
+          <span class="slider-ticks-mark">3:00</span>
+          <span class="slider-ticks-mark">4:00</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 音量控制（垂直） -->
+    <div class="section">
+      <div class="section-title">垂直滑动条（音量控制）</div>
+      <div class="volume-vertical">
+        <svg width="24" height="24" fill="#9ca3af" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clip-rule="evenodd"/>
+        </svg>
+        <input type="range" class="slider-vertical" orient="vertical" min="0" max="100" value="70">
+        <span style="font-size: 12px; color: #9ca3af;">70%</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

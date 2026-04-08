@@ -102,7 +102,7 @@
 
       <!-- 自定义进度通知组件 -->
       <CustomProgressNotification
-        v-if="showProgressDialog"
+        :show="showProgressDialog"
         :title="isDownloadingModel ? $t('mainView.separateView.downloadingModelTitle') : (isExtractingModel ? $t('mainView.separateView.downloadingModelTitle') : $t('mainView.separateView.processingTitle'))"
         :message="isDownloadingModel ? $t('mainView.separateView.modelDownloading') : (isExtractingModel ? $t('mainView.separateView.extractingModel') : $t('mainView.separateView.processingMessage'))"
         :progress="downloadProgress"
@@ -605,10 +605,15 @@ export default {
         return;
       }
 
-              // 模型文件存在，直接开始分析
-        this.continueAnalysis();
-      }
+      // 模型文件存在，直接开始分析
+      this.continueAnalysis();
     },
+
+    // 下载全部音轨
+    downloadAll() {
+      // TODO: 实现下载全部音轨功能
+    }
+  },
   mounted() {
     // 在Cloudflare Pages上，静态文件直接放在根目录下
     const workerPath = process.env.NODE_ENV === 'production' ? '/demucs-worker.js' : '/public/demucs-worker.js';

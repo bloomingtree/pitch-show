@@ -37,6 +37,78 @@
         </p>
       </section>
 
+        <!-- 示例歌曲体验模块 -->
+        <section class="demo-song-section">
+          <h2 class="text-xl md:text-2xl text-[#D94E1F] font-bold text-center">{{ $t('infoView.demoSongTitle') }}</h2>
+          <div class="demo-song-card">
+            <div class="demo-song-info">
+              <h3 class="text-lg font-bold text-gray-800">{{ $t('infoView.demoSongName') }} <span class="text-sm font-normal text-gray-500">— {{ $t('infoView.demoSongArtist') }}</span></h3>
+              <p class="text-sm text-gray-500 mt-1">{{ $t('infoView.demoSongDescription') }}</p>
+              <button
+                @click="tryDemoSong"
+                class="mt-4 text-base font-bold rounded-lg bg-[#D94E1F] text-white py-2 px-6 hover:bg-[#C4411A] transition-all duration-300 shadow-md hover:shadow-lg hover:scale-105">
+                {{ $t('infoView.demoSongButton') }}
+              </button>
+            </div>
+            <div class="demo-song-preview">
+              <div class="staff-preview">
+                <svg viewBox="0 0 320 130" xmlns="http://www.w3.org/2000/svg">
+                  <!-- 五线谱 -->
+                  <g stroke="#c4a882" stroke-width="1">
+                    <line x1="0" y1="20" x2="320" y2="20"/>
+                    <line x1="0" y1="36" x2="320" y2="36"/>
+                    <line x1="0" y1="52" x2="320" y2="52"/>
+                    <line x1="0" y1="68" x2="320" y2="68"/>
+                    <line x1="0" y1="84" x2="320" y2="84"/>
+                  </g>
+                  <!-- 高音谱号 -->
+                  <text x="6" y="68" font-size="52" font-family="serif" fill="#5a3e2b" opacity="0.7">&#119070;</text>
+                  <!-- 音符 -->
+                  <g class="staff-notes">
+                    <!-- 四分音符 -->
+                    <ellipse cx="68" cy="52" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,68,52)"/>
+                    <line x1="74" y1="52" x2="74" y2="26" stroke="#D94E1F" stroke-width="1.8"/>
+
+                    <ellipse cx="88" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,88,44)"/>
+                    <line x1="94" y1="44" x2="94" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+
+                    <ellipse cx="108" cy="36" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,108,36)"/>
+                    <line x1="114" y1="36" x2="114" y2="10" stroke="#D94E1F" stroke-width="1.8"/>
+
+                    <ellipse cx="128" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,128,44)"/>
+                    <line x1="134" y1="44" x2="134" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+
+                    <!-- 二分音符 -->
+                    <ellipse cx="152" cy="52" rx="7" ry="5.5" fill="none" stroke="#D94E1F" stroke-width="2" transform="rotate(-15,152,52)"/>
+                    <line x1="158" y1="52" x2="158" y2="26" stroke="#D94E1F" stroke-width="1.8"/>
+
+                    <ellipse cx="176" cy="60" rx="7" ry="5.5" fill="none" stroke="#FF6B35" stroke-width="2" transform="rotate(-15,176,60)"/>
+                    <line x1="182" y1="60" x2="182" y2="34" stroke="#FF6B35" stroke-width="1.8"/>
+
+                    <!-- 八分音符对 -->
+                    <ellipse cx="200" cy="44" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,200,44)"/>
+                    <line x1="206" y1="44" x2="206" y2="14" stroke="#D94E1F" stroke-width="1.8"/>
+                    <ellipse cx="218" cy="36" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,218,36)"/>
+                    <line x1="224" y1="36" x2="224" y2="10" stroke="#D94E1F" stroke-width="1.8"/>
+                    <line x1="206" y1="14" x2="224" y2="10" stroke="#D94E1F" stroke-width="2.5"/>
+
+                    <ellipse cx="240" cy="52" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,240,52)"/>
+                    <line x1="246" y1="52" x2="246" y2="26" stroke="#FF6B35" stroke-width="1.8"/>
+                    <ellipse cx="258" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,258,44)"/>
+                    <line x1="264" y1="44" x2="264" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+                    <line x1="246" y1="26" x2="264" y2="18" stroke="#FF6B35" stroke-width="2.5"/>
+
+                    <!-- 全音符 -->
+                    <ellipse cx="288" cy="52" rx="8" ry="6" fill="none" stroke="#D94E1F" stroke-width="2.5" transform="rotate(-15,288,52)"/>
+                  </g>
+                  <!-- 底部小字 -->
+                  <text x="160" y="108" text-anchor="middle" font-size="10" fill="#a0a0a0" font-family="sans-serif">♪ AI Note Analysis</text>
+                </svg>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section class="features">
           <h2 class="text-xl md:text-2xl text-[#D94E1F] font-bold">{{ $t('infoView.ourAdvantages') }}</h2>
           <div class="flex flex-col md:flex-row gap-4 md:gap-0">
@@ -83,6 +155,11 @@
   const router = useRouter()
 
   const toMain = () => {
+    router.push('/main')
+  }
+
+  const tryDemoSong = () => {
+    sessionStorage.setItem('pendingDemoSong', 'true')
     router.push('/main')
   }
   </script>
@@ -137,5 +214,76 @@
     padding-top: 20px;
     border-top: 1px solid #ffd9c4;
     color: #888;
+  }
+
+  /* 示例歌曲模块 */
+  .demo-song-section {
+    margin-bottom: 40px;
+  }
+
+  .demo-song-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    background: linear-gradient(135deg, #fff7f0 0%, #fff 100%);
+    border: 1px solid #ffd9c4;
+    border-radius: 16px;
+    padding: 24px;
+    margin-top: 16px;
+  }
+
+  @media (min-width: 768px) {
+    .demo-song-card {
+      flex-direction: row;
+    }
+    .demo-song-info {
+      flex: 1;
+    }
+  }
+
+  .demo-song-info {
+    text-align: left;
+  }
+
+  .demo-song-preview {
+    width: 100%;
+    max-width: 280px;
+    flex-shrink: 0;
+  }
+
+  .note-preview {
+    position: relative;
+    width: 100%;
+    height: 140px;
+    background: #1a1a2e;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .staff-preview {
+    width: 100%;
+    background: linear-gradient(135deg, #fefcf8 0%, #f8f0e3 100%);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(90, 62, 43, 0.12);
+    border: 1px solid #e8d5be;
+  }
+
+  .staff-preview svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .staff-notes {
+    animation: notesFadeIn 1s ease forwards;
+    opacity: 0;
+  }
+
+  @keyframes notesFadeIn {
+    0% { opacity: 0; }
+    100% { opacity: 1; }
   }
   </style>
