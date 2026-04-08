@@ -30,7 +30,7 @@
         <div class="px-3 rounded overflow-y-scroll flex1">
           <div v-for="(song, index) in analyzedSong" :key="index" class="border-b py-1">
             {{song.name}}
-            <button @click="showSong(song)" 
+            <button @click="showSong(song)"
             class="ml-1 p-1 rounded shadow-lg bg-amber-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.showButton') }}</button>
             <button @click="deleteSong(song.name, index)"
             class="ml-1 p-1 rounded shadow-lg bg-stone-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.deleteButton') }}</button>
@@ -65,6 +65,53 @@
         @mouseleave="handleCanvasMouseLeave"
         @click="handleCanvasClick">
       </canvas>
+
+      <!-- 空状态引导：列表为空且未加载音符时显示 -->
+      <div
+        v-if="analyzedSong.length === 0 && decodedNotes.length === 0 && !showProgressDialog"
+        class="empty-guide"
+        @click="loadDemoSong"
+        style="transform: rotateX(180deg);">
+        <div class="empty-guide-staff">
+          <svg viewBox="0 0 320 130" xmlns="http://www.w3.org/2000/svg">
+            <g stroke="#c4a882" stroke-width="1">
+              <line x1="0" y1="20" x2="320" y2="20"/>
+              <line x1="0" y1="36" x2="320" y2="36"/>
+              <line x1="0" y1="52" x2="320" y2="52"/>
+              <line x1="0" y1="68" x2="320" y2="68"/>
+              <line x1="0" y1="84" x2="320" y2="84"/>
+            </g>
+            <text x="6" y="68" font-size="52" font-family="serif" fill="#5a3e2b" opacity="0.7">&#119070;</text>
+            <g class="empty-staff-notes">
+              <ellipse cx="68" cy="52" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,68,52)"/>
+              <line x1="74" y1="52" x2="74" y2="26" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="88" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,88,44)"/>
+              <line x1="94" y1="44" x2="94" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="108" cy="36" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,108,36)"/>
+              <line x1="114" y1="36" x2="114" y2="10" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="128" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,128,44)"/>
+              <line x1="134" y1="44" x2="134" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="152" cy="52" rx="7" ry="5.5" fill="none" stroke="#D94E1F" stroke-width="2" transform="rotate(-15,152,52)"/>
+              <line x1="158" y1="52" x2="158" y2="26" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="176" cy="60" rx="7" ry="5.5" fill="none" stroke="#FF6B35" stroke-width="2" transform="rotate(-15,176,60)"/>
+              <line x1="182" y1="60" x2="182" y2="34" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="200" cy="44" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,200,44)"/>
+              <line x1="206" y1="44" x2="206" y2="14" stroke="#D94E1F" stroke-width="1.8"/>
+              <ellipse cx="218" cy="36" rx="7" ry="5.5" fill="#D94E1F" transform="rotate(-15,218,36)"/>
+              <line x1="224" y1="36" x2="224" y2="10" stroke="#D94E1F" stroke-width="1.8"/>
+              <line x1="206" y1="14" x2="224" y2="10" stroke="#D94E1F" stroke-width="2.5"/>
+              <ellipse cx="240" cy="52" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,240,52)"/>
+              <line x1="246" y1="52" x2="246" y2="26" stroke="#FF6B35" stroke-width="1.8"/>
+              <ellipse cx="258" cy="44" rx="7" ry="5.5" fill="#FF6B35" transform="rotate(-15,258,44)"/>
+              <line x1="264" y1="44" x2="264" y2="18" stroke="#FF6B35" stroke-width="1.8"/>
+              <line x1="246" y1="26" x2="264" y2="18" stroke="#FF6B35" stroke-width="2.5"/>
+              <ellipse cx="288" cy="52" rx="8" ry="6" fill="none" stroke="#D94E1F" stroke-width="2.5" transform="rotate(-15,288,52)"/>
+            </g>
+          </svg>
+        </div>
+        <p class="empty-guide-title">{{ $t('mainView.emptyGuide.title') }}</p>
+        <p class="empty-guide-sub">{{ $t('mainView.emptyGuide.subTitle') }}</p>
+      </div>
 
       <!-- 音符信息悬浮框 (Dev功能) -->
       <transition name="tooltip">
@@ -177,7 +224,6 @@ import { MusicAnalysis, MusicNote } from '@/components/icons'
 import { filterNotes } from '@/js/noteFilter.js'
 import { mergeNotes } from '@/js/noteMerger.js'
 import { loadConfig, saveConfig, DEFAULT_FILTER_SETTINGS } from '@/js/configManager.js'
-
 export default {
   name: 'SongPitch',
   props: {
@@ -965,6 +1011,7 @@ export default {
       }
     },
     setAudioFile(file) {
+      if (!file) return
       const fileURL = URL.createObjectURL(file)
       this.songFile = file
       // 设置audio元素的src属性为文件的URL
@@ -978,7 +1025,9 @@ export default {
       this.showNotes(isManual)
     },
     showSong(song) {
-      this.setAudioFile(song.song)
+      if (song.song) {
+        this.setAudioFile(song.song)
+      }
       const notes = JSON.parse(song.notesStr)
 
       // 设置原始音符数据（用于过滤功能）
@@ -1009,6 +1058,66 @@ export default {
       songDB.getAll().then(res=> {
       that.analyzedSong = res
     })
+    },
+    /**
+     * 加载示例歌曲：模拟分析流程，使用预置的音符数据
+     */
+    async loadDemoSong() {
+      this.showProgressDialog = true
+      this.analysisProgress = 0
+
+      try {
+        // 并行启动下载：音符数据 + 音频文件
+        const notesPromise = import('@/data/demoSongNotes.js')
+
+        // 使用 ReadableStream 跟踪音频下载进度
+        const audioResponse = await fetch('/demo-song.mp3')
+        const contentLength = parseInt(audioResponse.headers.get('content-length') || '0', 10)
+        const reader = audioResponse.body.getReader()
+        const chunks = []
+        let loaded = 0
+
+        // 阶段1: 下载 (0-80%)，进度反映真实下载量
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          chunks.push(value)
+          loaded += value.length
+          if (contentLength > 0) {
+            this.analysisProgress = Math.floor((loaded / contentLength) * 80)
+          }
+        }
+        this.analysisProgress = 80
+
+        // 阶段2: 后处理 (80-100%)
+        const { DEMO_NOTES } = await notesPromise
+        this.analysisProgress = 85
+
+        this.rawNotes = DEMO_NOTES.map(n => ({ ...n }))
+        this.updateDisplayNotes()
+        this.analysisProgress = 92
+
+        // 设置音频文件
+        const audioBlob = new Blob(chunks, { type: 'audio/mpeg' })
+        const audioFile = new File([audioBlob], 'demo-song.mp3', { type: 'audio/mpeg' })
+        this.setAudioFile(audioFile)
+        this.analysisProgress = 96
+
+        // 保存到 IndexedDB
+        const demoName = this.$t('infoView.demoSongName')
+        await songDB.add(demoName, this.songFile, this.decodedNotes)
+        this.getAnalysizedSongList()
+        this.analysisProgress = 100
+
+        await new Promise(r => setTimeout(r, 300))
+        this.showProgressDialog = false
+        this.analysisProgress = 0
+      } catch (error) {
+        console.error('加载示例歌曲失败:', error)
+      } finally {
+        this.showProgressDialog = false
+        this.analysisProgress = 0
+      }
     },
     setCanvasWH() {
       const canvasDiv = document.getElementById('canvasDiv')
@@ -1047,6 +1156,12 @@ export default {
       if (c) {
         this.noteCtx = c.getContext("2d")
       }
+
+      // 检查是否有待加载的示例歌曲
+      if (sessionStorage.getItem('pendingDemoSong') === 'true') {
+        sessionStorage.removeItem('pendingDemoSong')
+        this.$nextTick(() => this.loadDemoSong())
+      }
     })
     
     window.addEventListener('resize', this.setCanvasWH)
@@ -1062,6 +1177,64 @@ export default {
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
+/* 空状态引导 */
+.empty-guide {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+  margin-left: -120px;
+  margin-top: -60px;
+  width: 240px;
+  text-align: center;
+  cursor: pointer;
+  padding: 24px 20px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid #ffd9c4;
+  box-shadow: 0 8px 24px rgba(217, 78, 31, 0.1);
+  transition: all 0.3s ease;
+  z-index: 5;
+}
+.empty-guide:hover {
+  transform: rotateX(180deg) scale(1.04);
+  box-shadow: 0 12px 32px rgba(217, 78, 31, 0.18);
+}
+.empty-guide-staff {
+  width: 100%;
+  max-width: 280px;
+  background: linear-gradient(135deg, #fefcf8 0%, #f8f0e3 100%);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e8d5be;
+  margin-bottom: 12px;
+}
+.empty-guide-staff svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.empty-staff-notes {
+  animation: notesFadeIn 1s ease forwards;
+  opacity: 0;
+}
+@keyframes notesFadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+.empty-guide-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #D94E1F;
+  margin: 0 0 4px 0;
+}
+.empty-guide-sub {
+  font-size: 12px;
+  color: #999;
+  margin: 0;
+}
+
 h3 {
   margin: 40px 0 0;
 }

@@ -12,6 +12,11 @@
         "advantage2Description": "Accurately recognize melody, harmony, and other note information.",
         "advantage3": "Free to Use",
         "advantage3Description": "No registration, no payment required.",
+        "demoSongTitle": "Quick Demo",
+        "demoSongName": "Everlasting Smile",
+        "demoSongArtist": "Zhou Xuan",
+        "demoSongDescription": "Try the AI note analysis effect without uploading audio. See real analysis results instantly.",
+        "demoSongButton": "Try Demo",
         "useNow": "Use Now",
         "useNowDescription": "Upload your audio file, start your music creation journey!",
         "copyright": "Copyright"
@@ -39,6 +44,10 @@
             "analyzingMessage": "AI is detecting notes, please wait...",
             "processingTitle": "Processing Notes",
             "processingMessage": "Organizing and optimizing note data..."
+        },
+        "emptyGuide": {
+            "title": "Click to try AI note analysis",
+            "subTitle": "No upload needed, see real analysis results instantly"
         },
         "helpBar": {
             "title": "Shortcut Help",

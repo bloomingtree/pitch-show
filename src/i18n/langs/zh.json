@@ -52,6 +52,11 @@
         "advantage2Description": "准确识别旋律、和声等音符信息。",
         "advantage3": "免费使用",
         "advantage3Description": "无需注册，无需付费。",
+        "demoSongTitle": "快速体验",
+        "demoSongName": "永远的微笑",
+        "demoSongArtist": "周璇",
+        "demoSongDescription": "点击体验 AI 音符分析效果，无需上传音频即可查看真实的分析结果",
+        "demoSongButton": "开始体验",
         "useNow": "立即体验",
         "useNowDescription": "上传您的音频文件，开始您的音乐创作之旅！",
         "copyright": "版权所有"
@@ -79,6 +84,10 @@
             "analyzingMessage": "AI 正在识别音符，请稍候...",
             "processingTitle": "正在处理音符",
             "processingMessage": "正在整理和优化音符数据..."
+        },
+        "emptyGuide": {
+            "title": "点击体验 AI 音符分析",
+            "subTitle": "无需上传音频，即刻查看真实的分析结果"
         },
         "helpBar": {
             "title": "快捷键说明",
