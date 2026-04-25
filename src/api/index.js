@@ -2,13 +2,14 @@ import axios from 'axios'
 import { push } from 'notivue'
 import router from '@/router'
 
-// 创建axios实例
+// 创建 axios 实例 — API 服务器（shiyin.notalabs.cn）
+// dev 环境通过 Vite 代理 /shiyin-api → https://shiyin.notalabs.cn 避免 CORS
 const request = axios.create({
-  baseURL: 'http://localhost:9271', // 认证服务器地址
+  baseURL: import.meta.env.DEV ? '/shiyin-api/api' : 'https://shiyin.notalabs.cn/api',
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
-    'x-app-identifier': 'shiyin' // 识音应用标识
+    'x-app-identifier': 'shiyin'
   }
 })
 
@@ -41,9 +42,17 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   response => {
     const res = response.data
-    // 根据实际返回格式调整
-    if (res.code === 200 || res.success === true || res.data) {
-      return res.data || res
+    // 业务错误（HTTP 200 但 success: false）
+    if (res.success === false) {
+      const message = res.message || '操作失败'
+      push.error({ title: message, duration: 3000 })
+      const error = new Error(message)
+      error.response = { data: res }
+      return Promise.reject(error)
+    }
+    // 成功：解包 data 字段
+    if (res.data !== undefined) {
+      return res.data
     }
     return res
   },
@@ -70,7 +79,9 @@ request.interceptors.response.use(
           throw new Error('No refresh token')
         }
 
-        const res = await axios.post('http://localhost:9271/v1/auth/refresh', {
+        // dev 环境通过代理避免 CORS
+        const refreshBaseURL = import.meta.env.DEV ? '/auth-api' : 'https://auth.notalabs.cn'
+        const res = await axios.post(`${refreshBaseURL}/v1/auth/refresh`, {
           refreshToken: refreshToken
         }, {
           headers: {
@@ -78,8 +89,22 @@ request.interceptors.response.use(
           }
         })
 
-        const newToken = res.data.access_token
+        // auth 服务器返回 {success: true, data: {access_token, refresh_token}}
+        const tokenData = res.data?.data || res.data
+        const newToken = tokenData.access_token
+        const newRefreshToken = tokenData.refresh_token
         localStorage.setItem('access_token', newToken)
+        if (newRefreshToken) {
+          localStorage.setItem('refresh_token', newRefreshToken)
+        }
+
+        // 同步到 Pinia store（延迟导入避免循环依赖）
+        try {
+          const { useAuthStore } = await import('@/store/modules/auth')
+          const store = useAuthStore()
+          store.accessToken = newToken
+          if (newRefreshToken) store.refreshToken = newRefreshToken
+        } catch (_) {}
 
         onTokenRefreshed(newToken)
 
@@ -88,15 +113,31 @@ request.interceptors.response.use(
       } catch (refreshError) {
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
-        router.push('/auth/login')
-        push.error({
-          title: '登录已过期，请重新登录',
-          duration: 3000
-        })
+        localStorage.removeItem('user_info')
+
+        // 清除 Pinia store（延迟导入避免循环依赖）
+        try {
+          const { useAuthStore } = await import('@/store/modules/auth')
+          useAuthStore().clearAuth()
+        } catch (_) {}
+
+        // 若请求标记了 _skipAuthError，则静默拒绝，由调用方自行处理 401
+        if (!originalRequest._skipAuthError) {
+          router.push('/')
+          push.error({
+            title: '登录已过期，请重新登录',
+            duration: 3000
+          })
+        }
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
       }
+    }
+
+    // 对标记 _skipAuthError 的请求，401 静默处理
+    if (error.response?.status === 401 && originalRequest._skipAuthError) {
+      return Promise.reject(error)
     }
 
     const message = error.response?.data?.message || error.message || '网络错误'

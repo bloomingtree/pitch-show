@@ -1,13 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import MainView from '../views/MainView.vue'
 import InfoView from '../views/InfoView.vue'
-import RegisterView from '@/views/auth/RegisterView.vue';
-import LoginView from '@/views/auth/LoginView.vue';
-import EmailLoginView from '@/views/auth/EmailLoginView.vue';
-import SeparateView from '@/views/SeparateView.vue';
-import TestView from '@/views/TestView.vue';
-import ProfileView from '@/views/user/ProfileView.vue';
-import { setupRouterGuard } from './guards'
+import SeparateView from '../views/SeparateView.vue'
+import ProfileView from '@/views/user/ProfileView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -31,30 +26,9 @@ const router = createRouter({
     {
       path: '/about',
       name: 'about',
-      // route level code-splitting
-      // this generates a separate chunk (About.[hash].js) for this route
-      // which is lazy-loaded when the route is visited.
       component: () => import('../views/AboutView.vue'),
       meta: {
         description: '关于音频音高分析工具的信息，采用Spotify开源技术Basic-Pitch，提供免费精准的音符识别服务'
-      }
-    // },{
-    //   path: '/register',
-    //   name: 'Register',
-    //   component: RegisterView
-    // },{
-    //   path: '/login',
-    //   name: 'Login',
-    //   component: LoginView
-    },
-    {
-      path: '/auth/login',
-      name: 'login',
-      component: EmailLoginView,
-      meta: {
-        title: '登录 - 识音',
-        description: '使用邮箱验证码登录识音',
-        guest: true
       }
     },
     {
@@ -63,8 +37,15 @@ const router = createRouter({
       component: ProfileView,
       meta: {
         title: '个人资料 - 识音',
-        description: '管理您的个人资料',
-        requiresAuth: true
+        description: '管理您的个人资料'
+      }
+    },
+    {
+      path: '/pricing',
+      name: 'pricing',
+      component: () => import('../views/PricingView.vue'),
+      meta: {
+        title: '升级 Pro - 识音'
       }
     },
     {
@@ -92,45 +73,30 @@ const router = createRouter({
       meta: {
         description: '识音帮助文章'
       }
-    },
-    // {
-    //   path: '/test',
-    //   name: 'Test',
-    //   component: TestView
-    // }
+    }
   ]
 })
 
-// 应用路由守卫
-setupRouterGuard(router)
-
 // Update meta tags on route change
 router.afterEach((to) => {
-  // Update page title
   const title = to.meta.title || '识音 - 免费AI扒谱神器 | 歌曲音高分析工具'
   document.title = title
 
-  // Update meta description
   const description = to.meta.description || '免费音频音高分析工具，上传音频即可获取音符信息，采用Spotify Basic-Pitch技术'
   updateMetaTag('description', description)
 
-  // Update Open Graph tags
   updateMetaTag('og:title', title)
   updateMetaTag('og:description', description)
   updateMetaTag('og:url', window.location.href)
 
-  // Update Twitter Card tags
   updateMetaTag('twitter:title', title)
   updateMetaTag('twitter:description', description)
 
-  // Update canonical URL
   updateCanonicalUrl(window.location.href)
 
-  // Update hreflang tags for multi-region SEO
   updateHreflangTags(to.path)
 })
 
-// Helper function to update meta tags
 function updateMetaTag(name, content) {
   let meta = document.querySelector(`meta[name="${name}"]`) ||
              document.querySelector(`meta[property="${name}"]`)
@@ -149,7 +115,6 @@ function updateMetaTag(name, content) {
   }
 }
 
-// Helper function to update canonical URL
 function updateCanonicalUrl(url) {
   let canonical = document.querySelector('link[rel="canonical"]')
   if (canonical) {
@@ -162,22 +127,18 @@ function updateCanonicalUrl(url) {
   }
 }
 
-// Helper function to update hreflang tags for multi-region SEO
 function updateHreflangTags(path) {
-  // Remove existing hreflang tags
   document.querySelectorAll('link[rel="alternate"][hreflang]').forEach(el => el.remove())
 
   const intlDomain = 'https://pitch.shiyin.cyou'
   const cnDomain = 'https://shiyin.notalabs.cn'
 
-  // Define hreflang tags
   const hreflangTags = [
-    { hreflang: 'zh-CN', href: `${cnDomain}${path}` },      // Chinese (China) -> 国内站
-    { hreflang: 'en', href: `${intlDomain}${path}` },       // English -> 国际站
-    { hreflang: 'x-default', href: `${intlDomain}${path}` } // Default -> 国际站
+    { hreflang: 'zh-CN', href: `${cnDomain}${path}` },
+    { hreflang: 'en', href: `${intlDomain}${path}` },
+    { hreflang: 'x-default', href: `${intlDomain}${path}` }
   ]
 
-  // Add hreflang tags
   hreflangTags.forEach(({ hreflang, href }) => {
     const link = document.createElement('link')
     link.setAttribute('rel', 'alternate')

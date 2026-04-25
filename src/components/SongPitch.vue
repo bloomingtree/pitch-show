@@ -182,10 +182,10 @@
     </div>
 
     <!-- 动态音符分析按钮 -->
-    <div class="absolute bottom-44 left-4 z-20 flex flex-col gap-2">
+    <div class="absolute bottom-44 left-4 z-20">
       <button
         @click="showDynamicInfoDialog = !showDynamicInfoDialog"
-        class="bg-orange-300 w-14 h-14 text-white rounded-full border-[3.5px] border-[#6e6e96]  shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
+        class="bg-orange-300 w-14 h-14 text-white rounded-full border-[3.5px] border-[#6e6e96] shadow-lg hover:drop-shadow-xl transition-all duration-300 flex items-center justify-center">
         <MusicNote class="w-8 h-8 text-stone-600" />
       </button>
     </div>
@@ -196,9 +196,19 @@
       :stats="dynamicStats"
       :current-scheme="colorScheme"
       :filter-settings="filterSettings"
+      :analysis-mode="analysisMode"
+      :has-tracks="hasTracks"
+      :track-filters="trackFilters"
+      :track-colors="trackColors"
+      :current-user="currentUser"
+      :is-premium-user="isPremium"
       @close="showDynamicInfoDialog = false"
       @update:currentScheme="updateColorScheme"
-      @update:filterSettings="updateFilterSettings" />
+      @update:filterSettings="updateFilterSettings"
+      @update:trackFilters="updateTrackFilters"
+      @navigate-profile="goToProfile"
+      @logout="logoutFromSettings"
+      @login="loginFromSettings" />
 
     <!-- 分析进度对话框 -->
     <CustomProgressNotification
@@ -206,6 +216,52 @@
       :title="progressTitle"
       :message="progressMessage"
       :progress="analysisProgress"
+    />
+
+    <!-- 分析模式选择弹窗 -->
+    <AnalysisModeDialog
+      :show="showModeDialog"
+      :quota-exhausted="!isPremium && storageQuota.monthly_used >= storageQuota.monthly_limit"
+      @close="showModeDialog = false"
+      @selectLocal="startLocalAnalysis"
+      @selectPro="startProAnalysis"
+    />
+
+    <!-- 登录弹窗 -->
+    <LoginDialog
+      :show="showLoginDialog"
+      @close="showLoginDialog = false"
+      @loggedIn="onLoginSuccess"
+    />
+
+    <!-- 专业版分析进度弹窗 -->
+    <ProAnalysisProgressDialog
+      :show="showProProgress"
+      :stage="proProgressStage"
+      :stage-label="proProgressStageLabel"
+      :percent="proProgressPercent"
+      :estimated-seconds="proProgressEstimated"
+      :is-completed="proProgressCompleted"
+      :is-failed="proProgressFailed"
+      :error-msg="proProgressError"
+      @cancel="cancelProAnalysis"
+      @close="showProProgress = false"
+    />
+
+    <!-- 存储配额管理弹窗 -->
+    <StorageQuotaDialog
+      :show="showStorageQuota"
+      :quota="storageQuota"
+      :projects="serverProjects"
+      @close="showStorageQuota = false"
+      @freed="onStorageFreed"
+    />
+
+    <QuotaExhaustedDialog
+      :show="showQuotaExhausted"
+      :monthly-used="storageQuota.monthly_used"
+      :monthly-limit="storageQuota.monthly_limit"
+      @close="showQuotaExhausted = false"
     />
 
   </div>
@@ -220,10 +276,18 @@ import ShortcutHelp from '@/components/ShortcutHelp.vue'
 import SoundTagger from '@/js/SoundTagger.js'
 import DynamicInfoDialog from '@/components/DynamicInfoDialog.vue'
 import CustomProgressNotification from '@/components/CustomProgressNotification.vue'
+import AnalysisModeDialog from '@/components/AnalysisModeDialog.vue'
+import LoginDialog from '@/components/LoginDialog.vue'
+import ProAnalysisProgressDialog from '@/components/ProAnalysisProgressDialog.vue'
+import StorageQuotaDialog from '@/components/StorageQuotaDialog.vue'
+import QuotaExhaustedDialog from '@/components/QuotaExhaustedDialog.vue'
 import { MusicAnalysis, MusicNote } from '@/components/icons'
 import { filterNotes } from '@/js/noteFilter.js'
 import { mergeNotes } from '@/js/noteMerger.js'
 import { loadConfig, saveConfig, DEFAULT_FILTER_SETTINGS } from '@/js/configManager.js'
+import authApi from '@/api/auth'
+import { useAuthStore } from '@/store/modules/auth'
+import { startAnalysis, getAnalysisProgress, getSong, getAnalysisQuota, getSongList, convertBackendResult, pollAnalysisUntilComplete } from '@/api/analysis'
 export default {
   name: 'SongPitch',
   props: {
@@ -234,6 +298,11 @@ export default {
     ShortcutHelp,
     DynamicInfoDialog,
     CustomProgressNotification,
+    AnalysisModeDialog,
+    LoginDialog,
+    ProAnalysisProgressDialog,
+    StorageQuotaDialog,
+    QuotaExhaustedDialog,
     MusicAnalysis,
     MusicNote
   },
@@ -292,6 +361,25 @@ export default {
       } else {
         return this.$t('mainView.listBar.processingMessage') || '正在整理和优化音符数据...'
       }
+    },
+
+    /** 当前音符数据是否包含多音轨信息 */
+    hasTracks() {
+      return this.rawNotes.length > 0 && this.rawNotes.some(n => n.trackName)
+    },
+
+    /** 当前配色方案的音轨颜色（与 Canvas 渲染一致） */
+    trackColors() {
+      const scheme = this.colorSchemes[this.colorScheme]
+      if (scheme?.tracks && this.hasTracks) return scheme.tracks
+      // 回退：从音符数据提取（如从 IndexedDB 加载的旧数据）
+      const colors = {}
+      for (const note of this.rawNotes) {
+        if (note.trackName && note.trackColor && !colors[note.trackName]) {
+          colors[note.trackName] = note.trackColor
+        }
+      }
+      return colors
     }
   },
   data() {
@@ -329,25 +417,55 @@ export default {
       showDynamicInfoDialog: false, // 是否显示动态音符信息弹窗
       showProgressDialog: false, // 是否显示分析进度对话框
       analysisProgress: 0, // 分析进度（0-100）
-      colorScheme: loadConfig().colorScheme || 'sunset', // 颜色方案
+      colorScheme: loadConfig().colorScheme || 'classic', // 颜色方案
       colorSchemes: { // 颜色方案配置
+        classic: {
+          dynamic: '#84cc16',
+          stable: '#f59e0b',
+          tracks: { vocals: '#06b6d4', bass: '#f59e0b', drums: '#57534e', other: '#84cc16' }
+        },
         ocean: {
           dynamic: '#0EA5E9',
-          stable: '#64748B'
+          stable: '#64748B',
+          tracks: { vocals: '#FF7675', bass: '#64748B', drums: '#94A3B8', other: '#0EA5E9' }
         },
         sunset: {
           dynamic: '#FF6B35',
-          stable: '#F472B6'
+          stable: '#F472B6',
+          tracks: { vocals: '#FBBF24', bass: '#F472B6', drums: '#A78BFA', other: '#FF6B35' }
         },
         forest: {
           dynamic: '#10B981',
-          stable: '#8B5CF6'
+          stable: '#8B5CF6',
+          tracks: { vocals: '#F87171', bass: '#8B5CF6', drums: '#D97706', other: '#10B981' }
         }
       },
       hoveredNote: null, // 当前悬停的音符
       tooltipX: 0,
       tooltipY: 0,
       audioContext: null, // 音频上下文
+      // ─── 专业版分析相关 ───
+      analysisMode: 'none', // 'none' | 'local' | 'pro'
+      showModeDialog: false, // 分析模式选择弹窗
+      showLoginDialog: false, // 登录弹窗
+      showProProgress: false, // 专业版进度弹窗
+      showStorageQuota: false, // 存储配额弹窗
+      showQuotaExhausted: false, // 月度额度耗尽弹窗
+      currentUser: null, // 当前登录用户
+      isPremium: false, // 是否为会员
+      proProgressPercent: 0, // 专业版进度百分比
+      proProgressStage: 'separating', // 当前阶段
+      proProgressStageLabel: '正在分离音轨...', // 阶段标签
+      proProgressEstimated: 0, // 预估剩余时间（秒）
+      proProgressCompleted: false, // 分析是否完成
+      proProgressFailed: false, // 分析是否失败
+      proProgressError: '', // 错误信息
+      proAnalysisPollPromise: null, // 轮询 Promise（用于取消）
+      storageQuota: { storage_limit: 5, storage_used: 0, monthly_limit: 2, monthly_used: 0, is_premium: false },
+      serverProjects: [], // 服务端项目列表
+      beats: null, // 节拍数据
+      chords: null, // 和弦数据
+      trackFilters: { vocals: true, bass: true, drums: true, other: true }, // 音轨过滤
     }
   },
   methods: {
@@ -430,6 +548,12 @@ export default {
       if(this.processStr !== '') {
         return
       }
+      // 弹出分析模式选择面板（如果还没选过）
+      if (this.analysisMode === 'none') {
+        this.chooseAnalysisMode()
+        return
+      }
+      // 已经选定模式，直接执行
       let that = this
       let fr = new FileReader()
       fr.readAsArrayBuffer(this.songFile)
@@ -583,21 +707,21 @@ export default {
       const amplitude = singleNote.amplitude || 0.5;
       const opacity = minOpacity + (maxOpacity - minOpacity) * amplitude;
 
-      // 获取当前颜色方案
-      const scheme = this.colorSchemes[this.colorScheme] || this.colorSchemes.sunset;
-
-      // 根据是否为动态音符选择颜色
       let color;
-      if (singleNote.isDynamic) {
-        // 动态音符
-        const hex = scheme.dynamic.replace('#', '');
+      if (singleNote.trackName) {
+        // 专业版：按音轨着色（优先使用当前配色方案的音轨色）
+        const scheme = this.colorSchemes[this.colorScheme]
+        const schemeColor = scheme?.tracks?.[singleNote.trackName]
+        const hex = (schemeColor || singleNote.trackColor).replace('#', '');
         const r = parseInt(hex.substring(0, 2), 16);
         const g = parseInt(hex.substring(2, 4), 16);
         const b = parseInt(hex.substring(4, 6), 16);
         color = `rgba(${r}, ${g}, ${b}, ${opacity})`;
       } else {
-        // 平稳音符
-        const hex = scheme.stable.replace('#', '');
+        // 普通版：根据动态/平稳双色渲染
+        const scheme = this.colorSchemes[this.colorScheme] || this.colorSchemes.sunset;
+        const hexStr = singleNote.isDynamic ? scheme.dynamic : scheme.stable;
+        const hex = hexStr.replace('#', '');
         const r = parseInt(hex.substring(0, 2), 16);
         const g = parseInt(hex.substring(2, 4), 16);
         const b = parseInt(hex.substring(4, 6), 16);
@@ -708,6 +832,13 @@ export default {
       if (!this.rawNotes || this.rawNotes.length === 0) {
         return;
       }
+
+      // 多音轨模式走独立过滤逻辑
+      if (this.hasTracks) {
+        this.updateDisplayNotesForPro()
+        return
+      }
+
       let notes = [...this.rawNotes];
 
       // 注意处理顺序：
@@ -1119,6 +1250,334 @@ export default {
         this.analysisProgress = 0
       }
     },
+
+    // ─── 专业版分析方法 ──────────────────────────
+
+    /**
+     * 选择分析模式（重写 startAnanlyze 的入口）
+     */
+    chooseAnalysisMode() {
+      if (!this.chosenFile) return
+      if (this.processStr !== '') return
+      this.showModeDialog = true
+    },
+
+    /**
+     * 选择普通版（本地分析）— 原有流程
+     */
+    startLocalAnalysis() {
+      this.showModeDialog = false
+      this.analysisMode = 'local'
+      this.startAnanlyze()
+    },
+
+    /**
+     * 选择专业版（后端分析）
+     */
+    async startProAnalysis() {
+      this.showModeDialog = false
+
+      // 检查是否已登录
+      if (!this.currentUser) {
+        this.showLoginDialog = true
+        return
+      }
+
+      // 已登录，检查配额
+      await this.checkQuotaAndAnalyze()
+    },
+
+    /**
+     * 登录成功回调
+     */
+    async onLoginSuccess(user) {
+      this.showLoginDialog = false
+      this.currentUser = user
+      this.isPremium = user.is_premium || false
+      // 同步到 auth store
+      useAuthStore().setUser(user)
+      await this.checkQuotaAndAnalyze()
+    },
+
+    /**
+     * 检查配额并开始分析
+     */
+    async checkQuotaAndAnalyze() {
+      try {
+        const quota = await getAnalysisQuota()
+        this.storageQuota = quota
+        this.isPremium = quota.is_premium
+
+        // 检查月度分析次数（仅免费用户）
+        if (!this.isPremium && quota.monthly_used >= quota.monthly_limit) {
+          this.storageQuota = quota
+          this.showQuotaExhausted = true
+          return
+        }
+
+        // 检查存储配额
+        if (quota.storage_used >= quota.storage_limit) {
+          // 加载歌曲列表供删除
+          const result = await getSongList({ limit: 50 })
+          this.serverProjects = result.data || []
+          this.showStorageQuota = true
+          return
+        }
+
+        // 配额充足，开始分析
+        this.doProAnalysis()
+      } catch (error) {
+        console.error('配额检查失败:', error)
+        // 如果是 401，说明 token 无效，重新登录
+        if (error?.response?.status === 401) {
+          this.currentUser = null
+          useAuthStore().setUser(null)
+          this.showLoginDialog = true
+        }
+      }
+    },
+
+    /**
+     * 存储空间释放后回调
+     */
+    async onStorageFreed() {
+      this.showStorageQuota = false
+      // 重新加载配额
+      try {
+        const quota = await getAnalysisQuota()
+        this.storageQuota = quota
+      } catch (e) {
+        console.error('刷新配额失败:', e)
+      }
+      // 继续分析
+      this.doProAnalysis()
+    },
+
+    /**
+     * 执行专业版分析
+     */
+    async doProAnalysis() {
+      this.analysisMode = 'pro'
+      this.showProProgress = true
+      this.proProgressPercent = 0
+      this.proProgressStage = 'separating'
+      this.proProgressStageLabel = '正在上传音频...'
+      this.proProgressCompleted = false
+      this.proProgressFailed = false
+      this.proProgressError = ''
+
+      try {
+        // 1. 上传音频并启动分析
+        this.proProgressPercent = 5
+        const project = await startAnalysis(this.songFile, {
+          name: this.songFile.name.replace(/\.[^/.]+$/, ''),
+          truncate: true
+        })
+
+        const projectId = project.id
+
+        // 如果是缓存结果（秒出）
+        if (project.cached || project.status === 'completed') {
+          this.proProgressPercent = 100
+          this.proProgressCompleted = true
+          await this.loadProAnalysisResult(projectId)
+          return
+        }
+
+        // 2. 轮询进度
+        this.proProgressPercent = 10
+        const pollPromise = pollAnalysisUntilComplete(
+          projectId,
+          (progress) => {
+            this.proProgressStage = progress.stage
+            this.proProgressStageLabel = progress.label
+            this.proProgressPercent = progress.percent
+            this.proProgressEstimated = progress.estimated_remaining_seconds || 0
+          },
+          5000
+        )
+
+        this.proAnalysisPollPromise = pollPromise
+
+        const completedProject = await pollPromise
+
+        // 3. 加载结果
+        this.proProgressPercent = 100
+        this.proProgressCompleted = true
+        await this.loadProAnalysisResult(projectId)
+
+      } catch (error) {
+        if (error.message === '分析已取消') {
+          // 用户主动取消
+          console.log('用户取消了分析')
+        } else {
+          console.error('专业版分析失败:', error)
+          this.proProgressFailed = true
+          const apiMsg = Array.isArray(error?.response?.data?.message)
+            ? error.response.data.message.join('; ')
+            : error?.response?.data?.message
+          this.proProgressError = apiMsg || error.message || '分析失败'
+        }
+      }
+    },
+
+    /**
+     * 取消专业版分析
+     */
+    cancelProAnalysis() {
+      if (this.proAnalysisPollPromise && this.proAnalysisPollPromise.cancel) {
+        this.proAnalysisPollPromise.cancel()
+      }
+      this.showProProgress = false
+      this.proProgressPercent = 0
+    },
+
+    /**
+     * 加载专业版分析结果并渲染
+     */
+    async loadProAnalysisResult(projectId) {
+      try {
+        const song = await getSong(projectId)
+        if (!song || !song.analysis) {
+          throw new Error('分析结果为空')
+        }
+
+        console.log('[ProAnalysis] 加载分析结果, 音轨数:', Object.keys(song.analysis.tracks || {}).join(', '))
+
+        // 转换数据
+        const { notes, beats, chords, duration } = convertBackendResult(song.analysis, song.audio?.duration || 0)
+        console.log('[ProAnalysis] 转换完成, 音符数:', notes.length, '时长:', duration)
+        this.beats = beats
+        this.chords = chords
+
+        // 设置音频
+        if (this.songFile) {
+          this.setAudioFile(this.songFile)
+        }
+
+        // 存储 rawNotes 并更新显示
+        this.rawNotes = notes
+        this.updateDisplayNotes()
+
+        // 保存到本地 IndexedDB（非阻塞，不影响主流程）
+        try {
+          await songDB.add(
+            song.title || 'pro-analysis',
+            this.songFile,
+            this.decodedNotes
+          )
+          this.getAnalysizedSongList()
+        } catch (saveError) {
+          console.warn('[ProAnalysis] 保存到本地失败（不影响显示）:', saveError.message)
+        }
+
+        // 短暂显示完成后关闭
+        await new Promise(r => setTimeout(r, 800))
+        this.showProProgress = false
+        this.proProgressPercent = 0
+
+      } catch (error) {
+        console.error('[ProAnalysis] 加载分析结果失败:', error)
+        this.proProgressFailed = true
+        this.proProgressError = error?.message || '加载结果失败'
+      }
+    },
+
+    /**
+     * 检查用户登录状态（应用启动时调用）
+     */
+    async checkLoginStatus() {
+      const token = localStorage.getItem('access_token')
+      if (!token) return
+
+      try {
+        const user = await authApi.getCurrentUser()
+        this.currentUser = user
+        this.isPremium = user.is_premium || false
+        // 同步到 auth store（供 NavigationBar 等使用）
+        useAuthStore().setUser(user)
+      } catch (e) {
+        this.currentUser = null
+        this.isPremium = false
+        // 仅在 token 确认无效时（拦截器已清除 localStorage）才清除 store
+        // 网络错误等临时故障不清除，保留登录状态
+        if (!localStorage.getItem('access_token')) {
+          useAuthStore().clearAuth()
+        }
+      }
+    },
+
+    /**
+     * 更新音轨过滤
+     */
+    updateTrackFilters(filters) {
+      this.trackFilters = { ...filters }
+      // 重新过滤并渲染
+      this.updateDisplayNotesForPro()
+    },
+
+    /**
+     * 专业版模式下的显示更新（带音轨过滤）
+     */
+    updateDisplayNotesForPro() {
+      if (!this.hasTracks || !this.rawNotes || this.rawNotes.length === 0) {
+        return
+      }
+
+      // 按音轨过滤
+      let notes = this.rawNotes.filter(n => {
+        if (n.trackName && this.trackFilters[n.trackName] === false) return false
+        return true
+      })
+
+      // 计算显示参数
+      this.decodedNotes = this.changeNoteAmplitudeForNotes(notes)
+
+      // 更新统计
+      if (this.enableDynamicAnalysis) {
+        this.dynamicStats = this.getDynamicStatistics(this.decodedNotes)
+      }
+
+      this.lastPastNoteIndex = 0
+      this.showNotes()
+    },
+
+    /**
+     * 退出登录
+     */
+    logout() {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      this.currentUser = null
+      this.isPremium = false
+      // 同步到 auth store
+      useAuthStore().setUser(null)
+      useAuthStore().accessToken = null
+    },
+
+    /**
+     * 从设置弹窗跳转个人中心
+     */
+    goToProfile() {
+      this.showDynamicInfoDialog = false
+      this.$router.push('/user/profile')
+    },
+
+    /**
+     * 从设置弹窗退出登录
+     */
+    logoutFromSettings() {
+      this.logout()
+      this.showDynamicInfoDialog = false
+    },
+
+    /**
+     * 从设置弹窗打开登录
+     */
+    loginFromSettings() {
+      this.showDynamicInfoDialog = false
+      this.showLoginDialog = true
+    },
     setCanvasWH() {
       const canvasDiv = document.getElementById('canvasDiv')
       const noteCanvas = document.getElementById("note-canvas")
@@ -1143,6 +1602,7 @@ export default {
   },
   mounted() {
     this.getAnalysizedSongList()
+    this.checkLoginStatus()
 
     // 初始化声音标签分析器
     this.soundTagger = new SoundTagger()
@@ -1311,4 +1771,5 @@ a {
 .tooltip-leave-to {
   opacity: 0;
 }
+
 </style>

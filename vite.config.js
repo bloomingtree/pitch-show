@@ -15,12 +15,24 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 8080,
+    port: 3000,
     proxy: {
       '/api': {
         target: 'https://api-dev.pitch.shiyin.cyou',
         // target: 'http://127.0.0.1:8787',
         changeOrigin: true
+      },
+      // 认证服务器代理（解决 dev 环境 CORS）
+      '/auth-api': {
+        target: 'https://auth.notalabs.cn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/auth-api/, '')
+      },
+      // 专业版分析 API 代理（解决 dev 环境 CORS）
+      '/shiyin-api': {
+        target: 'https://shiyin.notalabs.cn',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/shiyin-api/, '')
       },
       '/static': {
         // target: 'https://api-dev.pitch.shiyin.cyou',
