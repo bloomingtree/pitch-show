@@ -13,9 +13,9 @@
         <div class="dialog-header">
           <div class="dialog-header-left">
             <MusicAnalysisIcon class="header-icon" />
-            <span class="dialog-title">选择分析模式</span>
+            <span class="dialog-title">{{ $t('analysisMode.title') }}</span>
           </div>
-          <button @click="$emit('close')" class="close-btn" aria-label="关闭">
+          <button @click="$emit('close')" class="close-btn" :aria-label="$t('loginDialog.close')">
             <CloseIcon class="w-5 h-5" />
           </button>
         </div>
@@ -29,22 +29,20 @@
             @mouseenter="hoveredMode = 'local'"
             @mouseleave="hoveredMode = null"
             @click="$emit('selectLocal')">
-            <div class="mode-badge free">免费</div>
+            <div class="mode-badge free">{{ $t('analysisMode.free') }}</div>
             <div class="mode-icon local">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/>
               </svg>
             </div>
             <div class="mode-info">
-              <div class="mode-name">普通版</div>
-              <div class="mode-desc">浏览器内音符检测，速度快，精度一般</div>
+              <div class="mode-name">{{ $t('analysisMode.basicLabel') }}</div>
+              <div class="mode-desc">{{ $t('analysisMode.basicDesc') }}</div>
             </div>
             <ul class="mode-features">
-              <li>本地 AI 音符检测</li>
-              <li>动态/平稳音符双色显示</li>
-              <li>无需登录</li>
+              <li v-for="(feature, i) in $t('analysisMode.basicFeatures')" :key="i">{{ feature }}</li>
             </ul>
-            <button class="mode-btn local-btn">开始</button>
+            <button class="mode-btn local-btn">{{ $t('analysisMode.basicStart') }}</button>
           </div>
 
           <!-- 专业版 -->
@@ -54,25 +52,22 @@
             @mouseenter="hoveredMode = 'pro'"
             @mouseleave="hoveredMode = null"
             @click="$emit('selectPro')">
-            <div class="mode-badge pro-badge">免费 2次/月</div>
+            <div v-if="quota.plan_level === 'free'" class="mode-badge pro-badge">{{ proBadgeText }}</div>
             <div class="mode-icon pro-icon">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
               </svg>
             </div>
             <div class="mode-info">
-              <div class="mode-name">专业版</div>
-              <div class="mode-desc">后端 AI 分析，高精度多轨分离</div>
+              <div class="mode-name">{{ $t('analysisMode.proLabel') }}</div>
+              <div class="mode-desc">{{ $t('analysisMode.proDesc') }}</div>
             </div>
             <ul class="mode-features">
-              <li>AI 音轨分离（人声/贝斯/鼓/伴奏）</li>
-              <li>四色音符显示</li>
-              <li>和弦 + 节拍检测</li>
-              <li>鼓件分类</li>
+              <li v-for="(feature, i) in $t('analysisMode.proFeatures')" :key="i">{{ feature }}</li>
             </ul>
-            <button class="mode-btn pro-btn">开始分析</button>
+            <button class="mode-btn pro-btn">{{ $t('analysisMode.proStart') }}</button>
             <div v-if="quotaExhausted" class="quota-hint">
-              本月额度已用完，<router-link to="/pricing" class="quota-link" @click.stop="$emit('close')">升级 Pro</router-link> 无限使用
+              {{ $t('analysisMode.proQuotaExhausted') }}
             </div>
           </div>
         </div>
@@ -84,17 +79,31 @@
 <script>
 import CloseIcon from '@/components/icons/CloseIcon.vue'
 import { MusicAnalysis as MusicAnalysisIcon } from '@/components/icons'
+import { PLAN_LABELS } from '@/js/planConstants'
 
 export default {
   name: 'AnalysisModeDialog',
   components: { CloseIcon, MusicAnalysisIcon },
   props: {
     show: { type: Boolean, default: false },
-    quotaExhausted: { type: Boolean, default: false }
+    quotaExhausted: { type: Boolean, default: false },
+    quota: { type: Object, default: () => ({ plan_level: 'free', monthly_limit: 1, monthly_used: 0 }) }
   },
   emits: ['close', 'selectLocal', 'selectPro'],
   data() {
     return { hoveredMode: null }
+  },
+  computed: {
+    planLabel() {
+      return PLAN_LABELS[this.quota?.plan_level] || this.$t('analysisMode.freePlan')
+    },
+    proBadgeText() {
+      if (!this.quota) return this.$t('analysisMode.freeQuotaMonthly')
+      const level = this.quota.plan_level || 'free'
+      if (level !== 'free') return this.planLabel
+      const limit = this.quota.monthly_limit ?? 1
+      return this.$t('analysisMode.freeQuotaMonthlyLimit', { limit })
+    }
   }
 }
 </script>
@@ -110,7 +119,7 @@ export default {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  width: 380px;
+  width: 520px;
   max-width: calc(100vw - 32px);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -170,7 +179,7 @@ export default {
 
 .dialog-body {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: 10px;
   padding: 14px;
 }
@@ -179,8 +188,10 @@ export default {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 14px 12px;
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.6);
   border: 1.5px solid rgba(0, 0, 0, 0.06);
@@ -219,8 +230,8 @@ export default {
 .mode-icon svg { width: 20px; height: 20px; }
 
 .mode-info { margin-top: 2px; }
-.mode-name { font-size: 15px; font-weight: 600; color: #1e293b; }
-.mode-desc { font-size: 12px; color: #6b7280; margin-top: 2px; }
+.mode-name { font-size: 14px; font-weight: 600; color: #1e293b; }
+.mode-desc { font-size: 11px; color: #6b7280; margin-top: 2px; }
 
 .mode-features {
   list-style: none;
@@ -232,9 +243,9 @@ export default {
 }
 
 .mode-features li {
-  font-size: 12px;
+  font-size: 11px;
   color: #4b5563;
-  padding-left: 14px;
+  padding-left: 12px;
   position: relative;
 }
 
@@ -242,9 +253,9 @@ export default {
   content: '';
   position: absolute;
   left: 0;
-  top: 6px;
-  width: 6px;
-  height: 6px;
+  top: 5px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #d1d5db;
 }
@@ -254,9 +265,9 @@ export default {
 .mode-btn {
   margin-top: 4px;
   width: 100%;
-  height: 34px;
+  height: 32px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   border: none;
   cursor: pointer;

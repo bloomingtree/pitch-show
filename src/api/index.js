@@ -89,8 +89,8 @@ request.interceptors.response.use(
           }
         })
 
-        // auth 服务器返回 {success: true, data: {access_token, refresh_token}}
-        const tokenData = res.data?.data || res.data
+        // auth 服务器返回 {success: true, data: {session: {access_token, refresh_token}}}
+        const tokenData = res.data?.data?.session || res.data?.data || res.data
         const newToken = tokenData.access_token
         const newRefreshToken = tokenData.refresh_token
         localStorage.setItem('access_token', newToken)

@@ -15,25 +15,25 @@
                 <path d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
               </svg>
             </div>
-            <span class="dialog-title">登录以使用专业版</span>
+            <span class="dialog-title">{{ $t('loginDialog.title') }}</span>
           </div>
-          <button @click="$emit('close')" class="close-btn" aria-label="关闭">
+          <button @click="$emit('close')" class="close-btn" :aria-label="$t('loginDialog.close')">
             <CloseIcon class="w-5 h-5" />
           </button>
         </div>
 
         <!-- 主体 -->
         <div class="dialog-body">
-          <p class="login-desc">无需密码，6 位验证码即可登录 / 注册</p>
+          <p class="login-desc">{{ $t('loginDialog.subtitle') }}</p>
 
           <!-- 邮箱 -->
           <div class="input-group">
-            <label class="input-label">邮箱</label>
+            <label class="input-label">{{ $t('loginDialog.emailLabel') }}</label>
             <div class="input-row">
               <input
                 v-model="email"
                 type="email"
-                placeholder="请输入邮箱地址"
+                :placeholder="$t('loginDialog.emailPlaceholder')"
                 class="input-field"
                 @keyup.enter="sendCode"
                 :disabled="sendingCode"
@@ -49,7 +49,7 @@
 
           <!-- 验证码 -->
           <div class="input-group">
-            <label class="input-label">验证码</label>
+            <label class="input-label">{{ $t('loginDialog.otpLabel') }}</label>
             <div class="otp-inputs">
               <input
                 v-for="(_, i) in 6"
@@ -78,7 +78,7 @@
             :disabled="!isOtpComplete || verifying"
             class="login-btn">
             <span v-if="verifying" class="spinner"></span>
-            {{ verifying ? '验证中...' : '登录 / 注册' }}
+            {{ verifying ? $t('loginDialog.verifying') : $t('loginDialog.loginRegister') }}
           </button>
         </div>
       </div>
@@ -92,6 +92,7 @@ import { push } from 'notivue'
 import CloseIcon from '@/components/icons/CloseIcon.vue'
 import authApi from '@/api/auth'
 import { useAuthStore } from '@/store/modules/auth'
+import { useI18n } from 'vue-i18n'
 
 export default {
   name: 'LoginDialog',
@@ -101,6 +102,7 @@ export default {
   },
   emits: ['close', 'loggedIn'],
   setup(props, { emit }) {
+    const { t } = useI18n()
     const email = ref('')
     const otpChars = reactive(['', '', '', '', '', ''])
     const otpRefs = reactive([])
@@ -114,9 +116,9 @@ export default {
     const isOtpComplete = computed(() => otpChars.every(c => /^[0-9]$/.test(c)))
 
     const sendCodeText = computed(() => {
-      if (sendingCode.value) return '发送中...'
+      if (sendingCode.value) return t('loginDialog.sending')
       if (cooldown.value > 0) return `${cooldown.value}s`
-      return '发送验证码'
+      return t('loginDialog.sendOTP')
     })
 
     const sendCode = async () => {
@@ -125,14 +127,14 @@ export default {
       errorMsg.value = ''
       try {
         await authApi.sendEmailOTP(email.value)
-        push.success({ title: '已发送' })
+        push.success({ title: t('loginDialog.sentSuccess'), duration: 1500 })
         cooldown.value = 60
         cooldownTimer = setInterval(() => {
           cooldown.value--
           if (cooldown.value <= 0) clearInterval(cooldownTimer)
         }, 1000)
       } catch (e) {
-        errorMsg.value = e?.message || '发送失败，请稍后重试'
+        errorMsg.value = e?.message || t('loginDialog.sendFailed')
       } finally {
         sendingCode.value = false
       }
@@ -181,7 +183,7 @@ export default {
         const user = await authStore.verifyOTP(email.value, code)
         emit('loggedIn', user)
       } catch (e) {
-        errorMsg.value = e?.message || e?.response?.data?.message || '验证失败，请重试'
+        errorMsg.value = e?.message || e?.response?.data?.message || t('loginDialog.verifyFailed')
       } finally {
         verifying.value = false
       }

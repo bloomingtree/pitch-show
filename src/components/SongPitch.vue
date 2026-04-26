@@ -1,9 +1,26 @@
 <template>
   <div class="h-full flex flex-col" style="background-color: #f8f7f4; min-height: 0;">
+    <!-- 后台分析完成通知横幅 -->
+    <Transition name="slide-down">
+      <div v-if="completedNotification?.show" class="analysis-done-banner">
+        <div class="banner-content">
+          <svg class="banner-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span class="banner-text">{{ $t('songPitch.analysisCompleteBanner', { title: completedNotification.title }) }}</span>
+          <button @click="viewCompletedSong(completedNotification.songId)" class="banner-view-btn">{{ $t('songPitch.viewResult') }}</button>
+          <button @click="completedNotification = null" class="banner-close-btn">&times;</button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 分析歌曲选项栏 -->
     <div class="group fixed right-5 -top-96 min-w-72 shadow-lg shadow-inner p-3 bg-white rounded-md h-96 transition-all duration-300 z-10
-    hover:top-0 hover:z-20" ref="analysisArea"
-    :class="{ 'hover-state': isHovered }">
+    hover:top-0 hover:z-20"
+    ref="analysisArea"
+    :class="{ 'hover-state': isHovered }"
+    @mouseenter="onPanelEnter"
+    @mouseleave="onPanelLeave">
       <div class="h-18 flex items-center justify-center w-full">
         <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-16 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-gray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
           <div class="flex flex-col items-center justify-center pt-5 pb-6">
@@ -15,41 +32,63 @@
           </div>
           <input id="dropzone-file" type="file" class="hidden" @change="chooseMusicFile" accept=".mp3, .wav" />
         </label>
-      </div> 
-      <div class="my-1"><p class="text-sm text-gray-600 dark:text-gray-400">{{songFile !== null ? songFile.name : ''}}</p></div>
-      <div class="mt-3 flex items-center justify-center gap-2">
+      </div>
+      <div v-if="songFile" class="my-0.5"><p class="text-xs text-gray-600 truncate">{{ songFile.name }}</p></div>
+      <div class="mt-1 flex items-center justify-center gap-2">
         <button
         class="px-5 py-1 rounded shadow-lg hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100"
         @click="startAnanlyze" :disabled="songFile === null">{{ $t('mainView.listBar.analyzeButton') }}</button>
         <span v-show="processStr !== ''" class="text-xs text-gray-600">{{ processStr }}</span>
       </div>
-      <div class="h-48 mt-4 bg-amber-100 flex flex-col z-20">
+      <div class="h-48 mt-2 bg-amber-100 flex flex-col z-20">
+        <!-- Tab 头部（使用与已分析列表按钮一致的样式） -->
         <div class="text-left bg-white">
-          <span class="bg-orange-300 rounded-t px-2 pt-2 font-bold">{{ $t('mainView.listBar.listName') }}</span>
+          <span @click="switchListTab('local')" :class="['p-1 rounded-t px-2 font-bold cursor-pointer transition-all', activeListTab === 'local' ? 'bg-amber-300 shadow' : 'text-gray-400 hover:text-gray-600']">{{ $t('songPitch.localTab') }}</span>
+          <span @click="switchListTab('cloud')" :class="['p-1 rounded-t px-2 font-bold cursor-pointer transition-all', activeListTab === 'cloud' ? 'bg-amber-300 shadow' : 'text-gray-400 hover:text-gray-600']">{{ $t('songPitch.cloudTab') }}</span>
         </div>
-        <div class="px-3 rounded overflow-y-scroll flex1">
-          <div v-for="(song, index) in analyzedSong" :key="index" class="border-b py-1">
+        <!-- 本地列表 -->
+        <div v-show="activeListTab === 'local'" class="px-3 flex-1 overflow-y-auto">
+          <div v-for="(song, index) in analyzedSong" :key="'local-'+index" class="border-b py-1">
             {{song.name}}
             <button @click="showSong(song)"
             class="ml-1 p-1 rounded shadow-lg bg-amber-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.showButton') }}</button>
             <button @click="deleteSong(song.name, index)"
             class="ml-1 p-1 rounded shadow-lg bg-stone-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">{{ $t('mainView.listBar.deleteButton') }}</button>
           </div>
+          <div v-if="analyzedSong.length === 0" class="text-center text-gray-400 text-xs py-4">{{ $t('songPitch.noLocalSongs') }}</div>
+        </div>
+        <!-- 云端列表 -->
+        <div v-show="activeListTab === 'cloud'" class="px-3 flex-1 overflow-y-auto">
+          <div v-if="!currentUser" class="text-center py-4">
+            <p class="text-xs text-gray-500 mb-2">{{ $t('songPitch.loginToViewCloud') }}</p>
+            <button @click="showLoginDialog = true" class="text-xs px-3 py-1 bg-orange-400 text-white rounded shadow hover:bg-orange-500 transition-all">{{ $t('songPitch.login') }}</button>
+          </div>
+          <div v-else-if="cloudSongsLoading" class="text-center text-gray-400 text-xs py-4">{{ $t('songPitch.loading') }}</div>
+          <template v-else>
+            <div v-for="song in cloudSongs" :key="'cloud-'+song.id" class="border-b py-1 flex items-center gap-1">
+              <span class="flex-1 text-sm truncate">{{ song.title || $t('songPitch.untitled') }}</span>
+              <span :class="['status-badge', song.status]">{{ statusLabel(song.status) }}</span>
+              <button v-if="song.status === 'completed'" @click="loadCloudSong(song.id)"
+                class="p-1 rounded shadow-lg bg-amber-300 hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100 text-xs">{{ $t('songPitch.viewResult') }}</button>
+            </div>
+            <div v-if="cloudSongs.length === 0" class="text-center text-gray-400 text-xs py-4">{{ $t('songPitch.noCloudSongs') }}</div>
+          </template>
         </div>
       </div>
       <div class="mt-2 space-x-2">
-        <router-link 
-            to="/separate" 
+        <router-link
+            to="/separate"
             class="ml-1 p-1 bg-slate-200 rounded hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">
             {{ $t('mainView.listBar.separateButton') }}
           </router-link>
-          <router-link 
-            to="/" 
+          <router-link
+            to="/"
             class="ml-1 p-1 bg-slate-200 rounded hover:shadow active:shadow-inner transition-all font-bold active:bg-slate-100">
             {{ $t('mainView.listBar.firstButton') }}
           </router-link>
       </div>
-      <div class="absolute -bottom-16 left-2 h-16 w-1/3 group-hover:scale-y-0 group-hover:-bottom-8 transition-all delay-200">
+      <div class="absolute -bottom-16 left-2 h-16 w-1/3 transition-all delay-200"
+        :class="isHovered ? 'scale-y-0 -bottom-8' : ''">
         <div class="h-16 w-full bg-slate-500 transition w-16 rounded-b"></div>
       </div>
     </div>
@@ -65,6 +104,23 @@
         @mouseleave="handleCanvasMouseLeave"
         @click="handleCanvasClick">
       </canvas>
+
+      <!-- Pro 分析信息：BPM / 拍号 / 当前和弦 -->
+      <div
+        v-if="beats || (chords && chords.length > 0)"
+        class="absolute bottom-2 left-2 z-10 flex items-center gap-1.5"
+        style="transform: rotateX(180deg);">
+        <span v-if="beats?.bpm" class="text-xs bg-black/50 text-white/80 px-1.5 py-0.5 rounded font-mono">
+          &#9833; {{ Math.round(beats.bpm) }}
+        </span>
+        <span v-if="beats?.time_signature" class="text-xs bg-black/50 text-white/80 px-1.5 py-0.5 rounded font-mono">
+          {{ beats.time_signature }}
+        </span>
+        <span v-if="currentChord && currentChord.chord !== 'N'"
+              class="text-xs bg-purple-600/80 text-white px-2 py-0.5 rounded font-bold">
+          {{ formatChordName(currentChord.chord) }}
+        </span>
+      </div>
 
       <!-- 空状态引导：列表为空且未加载音符时显示 -->
       <div
@@ -119,29 +175,29 @@
           v-if="false && hoveredNote"
           class="absolute z-30 bg-gray-900/95 text-white text-xs rounded-lg p-3 pointer-events-none max-w-xs"
           :style="{ transform: 'rotateX(180deg)', left: tooltipX + 'px', top: tooltipY + 'px' }">
-          <div class="font-bold text-purple-300 mb-2">音符信息 (Dev)</div>
+          <div class="font-bold text-purple-300 mb-2">{{ $t('songPitch.noteInfoDev') }}</div>
           <div class="space-y-1">
             <div><span class="text-gray-400">MIDI:</span> {{ hoveredNote.pitchMidi }}</div>
-            <div><span class="text-gray-400">起始时间:</span> {{ hoveredNote.startTimeSeconds.toFixed(3) }}s</div>
-            <div><span class="text-gray-400">持续时间:</span> {{ hoveredNote.durationSeconds.toFixed(3) }}s</div>
-            <div><span class="text-gray-400">音量:</span> {{ (hoveredNote.amplitude * 100).toFixed(1) }}%</div>
+            <div><span class="text-gray-400">{{ $t('songPitch.startTime') }}</span> {{ hoveredNote.startTimeSeconds.toFixed(3) }}s</div>
+            <div><span class="text-gray-400">{{ $t('songPitch.duration') }}</span> {{ hoveredNote.durationSeconds.toFixed(3) }}s</div>
+            <div><span class="text-gray-400">{{ $t('songPitch.volume') }}</span> {{ (hoveredNote.amplitude * 100).toFixed(1) }}%</div>
             <div v-if="hoveredNote.isDynamic !== undefined">
-              <span class="text-gray-400">类型:</span>
+              <span class="text-gray-400">{{ $t('songPitch.type') }}</span>
               <span :class="hoveredNote.isDynamic ? 'text-cyan-400' : 'text-gray-400'">
-                {{ hoveredNote.isDynamic ? '动态' : '平稳' }}
+                {{ hoveredNote.isDynamic ? $t('songPitch.dynamic') : $t('songPitch.steady') }}
               </span>
             </div>
             <div v-if="hoveredNote.pitchBends && hoveredNote.pitchBends.length > 0">
-              <span class="text-gray-400">弯音数:</span> {{ hoveredNote.pitchBends.length }}
+              <span class="text-gray-400">{{ $t('songPitch.bendAmount') }}</span> {{ hoveredNote.pitchBends.length }}
             </div>
             <div v-if="hoveredNote.pitchBends && hoveredNote.pitchBends.length > 0" class="mt-2">
-              <div class="text-gray-400 mb-1">弯音数组:</div>
+              <div class="text-gray-400 mb-1">{{ $t('songPitch.bendArray') }}</div>
               <div class="bg-gray-800 rounded px-2 py-1 text-xs font-mono break-all max-h-20 overflow-y-auto">
                 {{ formatPitchBendsArray(hoveredNote.pitchBends) }}
               </div>
             </div>
             <div v-if="getPitchBendEndValue(hoveredNote) !== null" class="mt-1">
-              <span class="text-gray-400">弯音终值:</span>
+              <span class="text-gray-400">{{ $t('songPitch.bendEnd') }}</span>
               <span class="text-yellow-400 font-mono">{{ getPitchBendEndValue(hoveredNote).toFixed(3) }}</span>
             </div>
           </div>
@@ -202,6 +258,7 @@
       :track-colors="trackColors"
       :current-user="currentUser"
       :is-premium-user="isPremium"
+      :plan-level="planLevel"
       @close="showDynamicInfoDialog = false"
       @update:currentScheme="updateColorScheme"
       @update:filterSettings="updateFilterSettings"
@@ -218,10 +275,20 @@
       :progress="analysisProgress"
     />
 
+    <!-- 云端加载进度对话框 -->
+    <CustomProgressNotification
+      :show="showCloudLoading"
+      :title="$t('songPitch.loadCloudProject')"
+      :message="$t('songPitch.downloadingData')"
+      :progress="cloudLoadingProgress"
+      @close="showCloudLoading = false"
+    />
+
     <!-- 分析模式选择弹窗 -->
     <AnalysisModeDialog
       :show="showModeDialog"
-      :quota-exhausted="!isPremium && storageQuota.monthly_used >= storageQuota.monthly_limit"
+      :quota-exhausted="!isPremium && storageQuota.monthly_limit > 0 && storageQuota.monthly_used >= storageQuota.monthly_limit"
+      :quota="storageQuota"
       @close="showModeDialog = false"
       @selectLocal="startLocalAnalysis"
       @selectPro="startProAnalysis"
@@ -246,6 +313,7 @@
       :error-msg="proProgressError"
       @cancel="cancelProAnalysis"
       @close="showProProgress = false"
+      @background="sendToBackground"
     />
 
     <!-- 存储配额管理弹窗 -->
@@ -259,8 +327,8 @@
 
     <QuotaExhaustedDialog
       :show="showQuotaExhausted"
-      :monthly-used="storageQuota.monthly_used"
-      :monthly-limit="storageQuota.monthly_limit"
+      :quota-type="quotaExhaustedType"
+      :quota="storageQuota"
       @close="showQuotaExhausted = false"
     />
 
@@ -288,6 +356,8 @@ import { loadConfig, saveConfig, DEFAULT_FILTER_SETTINGS } from '@/js/configMana
 import authApi from '@/api/auth'
 import { useAuthStore } from '@/store/modules/auth'
 import { startAnalysis, getAnalysisProgress, getSong, getAnalysisQuota, getSongList, convertBackendResult, pollAnalysisUntilComplete } from '@/api/analysis'
+import { isPaidPlan } from '@/js/planConstants'
+import { push } from 'notivue'
 export default {
   name: 'SongPitch',
   props: {
@@ -346,9 +416,9 @@ export default {
      */
     progressTitle() {
       if (this.analysisProgress < 80) {
-        return this.$t('mainView.listBar.analyzingTitle') || '正在分析音频'
+        return this.$t('mainView.listBar.analyzingTitle')
       } else {
-        return this.$t('mainView.listBar.processingTitle') || '正在处理音符'
+        return this.$t('mainView.listBar.processingTitle')
       }
     },
 
@@ -357,9 +427,9 @@ export default {
      */
     progressMessage() {
       if (this.analysisProgress < 80) {
-        return this.$t('mainView.listBar.analyzingMessage') || 'AI 正在识别音符，请稍候...'
+        return this.$t('mainView.listBar.analyzingMessage')
       } else {
-        return this.$t('mainView.listBar.processingMessage') || '正在整理和优化音符数据...'
+        return this.$t('mainView.listBar.processingMessage')
       }
     },
 
@@ -380,6 +450,21 @@ export default {
         }
       }
       return colors
+    },
+
+    /** 当前播放位置对应的和弦 */
+    currentChord() {
+      if (!this.chords || this.chords.length === 0) return null
+      return this.chords.find(c => this.playTime >= c.start && this.playTime < c.end)
+    }
+  },
+  watch: {
+    currentUser(newVal) {
+      if (!newVal) {
+        this.stopBackgroundPolling()
+        this.backgroundAnalysisIds = []
+        this.completedNotification = null
+      }
     }
   },
   data() {
@@ -427,12 +512,12 @@ export default {
         ocean: {
           dynamic: '#0EA5E9',
           stable: '#64748B',
-          tracks: { vocals: '#FF7675', bass: '#64748B', drums: '#94A3B8', other: '#0EA5E9' }
+          tracks: { vocals: '#FF7675', bass: '#FBBF24', drums: '#94A3B8', other: '#0284C7' }
         },
         sunset: {
           dynamic: '#FF6B35',
           stable: '#F472B6',
-          tracks: { vocals: '#FBBF24', bass: '#F472B6', drums: '#A78BFA', other: '#FF6B35' }
+          tracks: { vocals: '#FBBF24', bass: '#F472B6', drums: '#A78BFA', other: '#EA580C' }
         },
         forest: {
           dynamic: '#10B981',
@@ -448,24 +533,40 @@ export default {
       analysisMode: 'none', // 'none' | 'local' | 'pro'
       showModeDialog: false, // 分析模式选择弹窗
       showLoginDialog: false, // 登录弹窗
+      pendingProAnalysis: false, // 用户点击了"开始分析"但未登录，登录后继续
       showProProgress: false, // 专业版进度弹窗
       showStorageQuota: false, // 存储配额弹窗
       showQuotaExhausted: false, // 月度额度耗尽弹窗
+      quotaExhaustedType: 'monthly', // 'monthly' | 'daily'
       currentUser: null, // 当前登录用户
-      isPremium: false, // 是否为会员
+      isPremium: false, // 是否为付费用户（兼容）
+      planLevel: 'free', // 当前套餐等级 free/basic/pro/studio/custom
       proProgressPercent: 0, // 专业版进度百分比
       proProgressStage: 'separating', // 当前阶段
-      proProgressStageLabel: '正在分离音轨...', // 阶段标签
+      proProgressStageLabel: '', // 阶段标签
       proProgressEstimated: 0, // 预估剩余时间（秒）
       proProgressCompleted: false, // 分析是否完成
       proProgressFailed: false, // 分析是否失败
       proProgressError: '', // 错误信息
       proAnalysisPollPromise: null, // 轮询 Promise（用于取消）
-      storageQuota: { storage_limit: 5, storage_used: 0, monthly_limit: 2, monthly_used: 0, is_premium: false },
+      storageQuota: { storage_limit: 1, storage_used: 0, monthly_limit: 1, monthly_used: 0, max_duration: 180, daily_limit: -1, daily_used: 0, features: {}, plan_level: 'free' },
       serverProjects: [], // 服务端项目列表
       beats: null, // 节拍数据
       chords: null, // 和弦数据
       trackFilters: { vocals: true, bass: true, drums: true, other: true }, // 音轨过滤
+      // ─── 云端加载相关 (Feature 1) ───
+      showCloudLoading: false,
+      cloudLoadingProgress: 0,
+      // ─── 已分析列表云端 Tab (Feature 3) ───
+      activeListTab: 'local',
+      cloudSongs: [],
+      cloudSongsLoading: false,
+      // ─── 后台分析相关 (Feature 2 & 4) ───
+      currentProAnalysisId: null,
+      currentProAnalysisTitle: '',
+      backgroundPollingTimer: null,
+      backgroundAnalysisIds: [], // [{ songId, title }]
+      completedNotification: null, // { songId, title, show: true }
     }
   },
   methods: {
@@ -623,8 +724,8 @@ export default {
         console.error('音高分析失败:', error)
         this.$notify?.({
           type: 'error',
-          title: '分析失败',
-          message: error.message || '音高分析过程中发生错误'
+          title: this.$t('songPitch.analysisFailed'),
+          message: error.message || this.$t('songPitch.analysisError')
         })
       } finally {
         // 无论成功还是失败，都关闭进度对话框
@@ -676,6 +777,14 @@ export default {
             return
           }
         }
+      }
+
+      // 绘制节拍线、小节线和和弦标签（Pro 版数据）
+      if (this.beats) {
+        this.drawBeatsAndMeasures(ctx)
+      }
+      if (this.chords && this.chords.length > 0) {
+        this.drawChordLabels(ctx)
       }
 
       // 修复：每次都从头开始遍历，避免跳过未结束的长音符
@@ -736,6 +845,117 @@ export default {
         singleNote.height * this.secondLength
       );
     },
+
+    /**
+     * 绘制节拍线和小节线（Pro 版数据）
+     */
+    drawBeatsAndMeasures(ctx) {
+      const { beats, downbeats } = this.beats
+      if (!beats || beats.length === 0) return
+
+      const visibleStart = this.playTime
+      const visibleEnd = this.playTime + this.showingSecond
+
+      // 绘制 beat 线（细、浅）
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.06)'
+      ctx.lineWidth = 1
+      for (const beatTime of beats) {
+        if (beatTime < visibleStart) continue
+        if (beatTime > visibleEnd) break
+        const y = (beatTime - this.playTime) * this.secondLength
+        ctx.beginPath()
+        ctx.moveTo(0, y)
+        ctx.lineTo(this.noteAreaWidth, y)
+        ctx.stroke()
+      }
+
+      // 绘制 downbeat / 小节线（粗、深）+ 小节号
+      if (downbeats && downbeats.length > 0) {
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.14)'
+        ctx.lineWidth = 1.5
+        for (let i = 0; i < downbeats.length; i++) {
+          const dbTime = downbeats[i]
+          if (dbTime < visibleStart) continue
+          if (dbTime > visibleEnd) break
+          const y = (dbTime - this.playTime) * this.secondLength
+          ctx.beginPath()
+          ctx.moveTo(0, y)
+          ctx.lineTo(this.noteAreaWidth, y)
+          ctx.stroke()
+
+          // 小节序号（右下角，counter-rotate 修正 CSS rotateX）
+          ctx.save()
+          ctx.translate(this.noteAreaWidth - 4, y + 2)
+          ctx.scale(1, -1)
+          ctx.font = '10px system-ui, sans-serif'
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.22)'
+          ctx.textAlign = 'right'
+          ctx.textBaseline = 'top'
+          ctx.fillText(String(i + 1), 0, 0)
+          ctx.restore()
+        }
+      }
+    },
+
+    /**
+     * 绘制和弦标签（Pro 版数据）
+     */
+    drawChordLabels(ctx) {
+      if (!this.chords || this.chords.length === 0) return
+
+      const visibleStart = this.playTime
+      const visibleEnd = this.playTime + this.showingSecond
+
+      ctx.font = 'bold 13px system-ui, sans-serif'
+      ctx.textBaseline = 'middle'
+      ctx.textAlign = 'left'
+
+      for (const chord of this.chords) {
+        if (chord.end < visibleStart) continue
+        if (chord.start > visibleEnd) break
+        if (chord.chord === 'N') continue
+
+        const y = (chord.start - this.playTime) * this.secondLength
+        if (y < 0 || y > this.noteAreaHeight) continue
+
+        const displayChord = this.formatChordName(chord.chord)
+        const textWidth = ctx.measureText(displayChord).width
+        const padX = 6, padY = 4
+        const bgW = textWidth + padX * 2
+        const bgH = 13 + padY * 2
+
+        // counter-rotate 修正 CSS rotateX(180deg)
+        ctx.save()
+        ctx.translate(8, y)
+        ctx.scale(1, -1)
+
+        // 背景
+        ctx.fillStyle = 'rgba(30, 30, 50, 0.72)'
+        ctx.beginPath()
+        if (ctx.roundRect) {
+          ctx.roundRect(0, -bgH / 2, bgW, bgH, 3)
+        } else {
+          ctx.rect(0, -bgH / 2, bgW, bgH)
+        }
+        ctx.fill()
+
+        // 和弦文字
+        ctx.fillStyle = '#fff'
+        ctx.fillText(displayChord, padX, 0)
+        ctx.restore()
+      }
+    },
+
+    /**
+     * 格式化和弦名称：'Eb:maj' → 'Ebmaj', 'Ab:min7' → 'Abm7', 'C:maj7' → 'Cmaj7'
+     */
+    formatChordName(name) {
+      if (!name || name === 'N') return ''
+      return name
+        .replace(':min', 'm')
+        .replace(':', '')
+    },
+
     /**
      * 分析动态音符
      * @param {Array} notes - 音符数组
@@ -1122,27 +1342,35 @@ export default {
           return scale/(this.octaveNum*12);
       }
     },
+    onPanelEnter() {
+      if (this._hoverTimeout) {
+        clearTimeout(this._hoverTimeout)
+        this._hoverTimeout = null
+      }
+      this.isHovered = true
+    },
+    onPanelLeave() {
+      this._hoverTimeout = setTimeout(() => {
+        this.isHovered = false
+      }, 1000)
+    },
     chooseMusicFile(event) {
       // 获取文件列表
       this.chosenFile = false
       const files = event.target.files
       if (files.length > 0) {
         this.chosenFile = true
+        // 重置分析模式，确保每次上传新文件都弹出模式选择
+        this.analysisMode = 'none'
         // 创建一个URL对象，指向选择的文件
         this.setAudioFile(files[0])
-
-        // 让分析面板持续显示3秒，方便用户点击"开始分析"
-        this.isHovered = true
-        if (this._hoverTimeout) {
-          clearTimeout(this._hoverTimeout)
-        }
-        this._hoverTimeout = setTimeout(() => {
-          this.isHovered = false
-        }, 3000)
       }
     },
     setAudioFile(file) {
       if (!file) return
+      // 切换歌曲时重置 Pro 版数据
+      this.beats = null
+      this.chords = null
       const fileURL = URL.createObjectURL(file)
       this.songFile = file
       // 设置audio元素的src属性为文件的URL
@@ -1158,8 +1386,21 @@ export default {
     showSong(song) {
       if (song.song) {
         this.setAudioFile(song.song)
+        this.chosenFile = true
       }
       const notes = JSON.parse(song.notesStr)
+
+      // 恢复 Pro 版元数据（节拍、和弦）
+      if (song.proMetaStr) {
+        try {
+          const proMeta = JSON.parse(song.proMetaStr)
+          this.beats = proMeta.beats || null
+          this.chords = proMeta.chords || null
+        } catch (e) {
+          this.beats = null
+          this.chords = null
+        }
+      }
 
       // 设置原始音符数据（用于过滤功能）
       this.rawNotes = notes
@@ -1221,22 +1462,27 @@ export default {
         this.analysisProgress = 80
 
         // 阶段2: 后处理 (80-100%)
-        const { DEMO_NOTES } = await notesPromise
+        const { DEMO_NOTES, DEMO_BEATS, DEMO_CHORDS } = await notesPromise
         this.analysisProgress = 85
 
-        this.rawNotes = DEMO_NOTES.map(n => ({ ...n }))
-        this.updateDisplayNotes()
-        this.analysisProgress = 92
-
-        // 设置音频文件
+        // 设置音频文件（setAudioFile 会重置 beats/chords，必须先调用）
         const audioBlob = new Blob(chunks, { type: 'audio/mpeg' })
         const audioFile = new File([audioBlob], 'demo-song.mp3', { type: 'audio/mpeg' })
         this.setAudioFile(audioFile)
+        this.analysisProgress = 92
+
+        // 设置 Pro 版数据（在 setAudioFile 之后赋值，避免被重置）
+        this.beats = DEMO_BEATS || null
+        this.chords = DEMO_CHORDS || []
+        this.analysisMode = 'pro'
+
+        this.rawNotes = DEMO_NOTES.map(n => ({ ...n }))
+        this.updateDisplayNotes()
         this.analysisProgress = 96
 
-        // 保存到 IndexedDB
+        // 保存到 IndexedDB（含 Pro 元数据）
         const demoName = this.$t('infoView.demoSongName')
-        await songDB.add(demoName, this.songFile, this.decodedNotes)
+        await songDB.add(demoName, this.songFile, this.decodedNotes, { beats: this.beats, chords: this.chords })
         this.getAnalysizedSongList()
         this.analysisProgress = 100
 
@@ -1279,6 +1525,7 @@ export default {
 
       // 检查是否已登录
       if (!this.currentUser) {
+        this.pendingProAnalysis = true
         this.showLoginDialog = true
         return
       }
@@ -1293,10 +1540,25 @@ export default {
     async onLoginSuccess(user) {
       this.showLoginDialog = false
       this.currentUser = user
-      this.isPremium = user.is_premium || false
       // 同步到 auth store
       useAuthStore().setUser(user)
-      await this.checkQuotaAndAnalyze()
+
+      // 查询配额以获取准确的 plan_level 状态
+      try {
+        const quota = await getAnalysisQuota()
+        this.planLevel = quota.plan_level || 'free'
+        this.isPremium = isPaidPlan(this.planLevel)
+        this.storageQuota = quota
+      } catch (e) {
+        this.planLevel = user.plan_level || 'free'
+        this.isPremium = isPaidPlan(this.planLevel)
+      }
+
+      // 只有在用户先点击了"开始分析"后才自动继续分析流程
+      if (this.pendingProAnalysis) {
+        this.pendingProAnalysis = false
+        await this.checkQuotaAndAnalyze()
+      }
     },
 
     /**
@@ -1306,11 +1568,19 @@ export default {
       try {
         const quota = await getAnalysisQuota()
         this.storageQuota = quota
-        this.isPremium = quota.is_premium
+        this.planLevel = quota.plan_level || 'free'
+        this.isPremium = isPaidPlan(this.planLevel)
 
-        // 检查月度分析次数（仅免费用户）
-        if (!this.isPremium && quota.monthly_used >= quota.monthly_limit) {
-          this.storageQuota = quota
+        // 检查月度分析次数
+        if (quota.monthly_limit > 0 && quota.monthly_used >= quota.monthly_limit) {
+          this.quotaExhaustedType = 'monthly'
+          this.showQuotaExhausted = true
+          return
+        }
+
+        // 检查每日分析上限
+        if (quota.daily_limit > 0 && quota.daily_used >= quota.daily_limit) {
+          this.quotaExhaustedType = 'daily'
           this.showQuotaExhausted = true
           return
         }
@@ -1346,6 +1616,8 @@ export default {
       try {
         const quota = await getAnalysisQuota()
         this.storageQuota = quota
+        this.planLevel = quota.plan_level || 'free'
+        this.isPremium = isPaidPlan(this.planLevel)
       } catch (e) {
         console.error('刷新配额失败:', e)
       }
@@ -1361,7 +1633,7 @@ export default {
       this.showProProgress = true
       this.proProgressPercent = 0
       this.proProgressStage = 'separating'
-      this.proProgressStageLabel = '正在上传音频...'
+      this.proProgressStageLabel = this.$t('songPitch.uploadingAudio')
       this.proProgressCompleted = false
       this.proProgressFailed = false
       this.proProgressError = ''
@@ -1375,6 +1647,8 @@ export default {
         })
 
         const projectId = project.id
+        this.currentProAnalysisId = projectId
+        this.currentProAnalysisTitle = this.songFile ? this.songFile.name.replace(/\.[^/.]+$/, '') : this.$t('songPitch.proAnalysisDefault')
 
         // 如果是缓存结果（秒出）
         if (project.cached || project.status === 'completed') {
@@ -1407,7 +1681,7 @@ export default {
         await this.loadProAnalysisResult(projectId)
 
       } catch (error) {
-        if (error.message === '分析已取消') {
+        if (error.message === this.$t('songPitch.analysisCancelled')) {
           // 用户主动取消
           console.log('用户取消了分析')
         } else {
@@ -1416,7 +1690,7 @@ export default {
           const apiMsg = Array.isArray(error?.response?.data?.message)
             ? error.response.data.message.join('; ')
             : error?.response?.data?.message
-          this.proProgressError = apiMsg || error.message || '分析失败'
+          this.proProgressError = apiMsg || error.message || this.$t('songPitch.analysisFailed')
         }
       }
     },
@@ -1439,7 +1713,7 @@ export default {
       try {
         const song = await getSong(projectId)
         if (!song || !song.analysis) {
-          throw new Error('分析结果为空')
+          throw new Error(this.$t('songPitch.emptyResult'))
         }
 
         console.log('[ProAnalysis] 加载分析结果, 音轨数:', Object.keys(song.analysis.tracks || {}).join(', '))
@@ -1447,13 +1721,14 @@ export default {
         // 转换数据
         const { notes, beats, chords, duration } = convertBackendResult(song.analysis, song.audio?.duration || 0)
         console.log('[ProAnalysis] 转换完成, 音符数:', notes.length, '时长:', duration)
-        this.beats = beats
-        this.chords = chords
 
-        // 设置音频
+        // 设置音频（setAudioFile 会重置 beats/chords，必须在赋值前调用）
         if (this.songFile) {
           this.setAudioFile(this.songFile)
         }
+
+        this.beats = beats
+        this.chords = chords
 
         // 存储 rawNotes 并更新显示
         this.rawNotes = notes
@@ -1464,7 +1739,8 @@ export default {
           await songDB.add(
             song.title || 'pro-analysis',
             this.songFile,
-            this.decodedNotes
+            this.decodedNotes,
+            { beats, chords }
           )
           this.getAnalysizedSongList()
         } catch (saveError) {
@@ -1479,7 +1755,7 @@ export default {
       } catch (error) {
         console.error('[ProAnalysis] 加载分析结果失败:', error)
         this.proProgressFailed = true
-        this.proProgressError = error?.message || '加载结果失败'
+        this.proProgressError = error?.message || this.$t('songPitch.loadResultFailed')
       }
     },
 
@@ -1493,11 +1769,14 @@ export default {
       try {
         const user = await authApi.getCurrentUser()
         this.currentUser = user
-        this.isPremium = user.is_premium || false
+        // 从 user 或 quota 获取 plan_level
+        this.planLevel = user.plan_level || 'free'
+        this.isPremium = isPaidPlan(this.planLevel)
         // 同步到 auth store（供 NavigationBar 等使用）
         useAuthStore().setUser(user)
       } catch (e) {
         this.currentUser = null
+        this.planLevel = 'free'
         this.isPremium = false
         // 仅在 token 确认无效时（拦截器已清除 localStorage）才清除 store
         // 网络错误等临时故障不清除，保留登录状态
@@ -1549,6 +1828,7 @@ export default {
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       this.currentUser = null
+      this.planLevel = 'free'
       this.isPremium = false
       // 同步到 auth store
       useAuthStore().setUser(null)
@@ -1578,6 +1858,313 @@ export default {
       this.showDynamicInfoDialog = false
       this.showLoginDialog = true
     },
+
+    /**
+    /**
+     * 加载云端项目（共享方法，handleRouteQuery 和云端 Tab 复用）
+     * 包含加载动画、音频下载进度追踪、数据转换、保存到本地
+     */
+    async loadCloudProject(projectId) {
+      this.showCloudLoading = true
+      this.cloudLoadingProgress = 5
+
+      try {
+        const song = await getSong(projectId)
+        if (!song || !song.analysis) {
+          throw new Error(this.$t('songPitch.emptyResult'))
+        }
+        this.cloudLoadingProgress = 30
+
+        // 下载音频文件（ReadableStream 追踪进度）
+        if (song.audio && song.audio.url) {
+          const audioResp = await fetch(song.audio.url)
+          const contentLength = parseInt(audioResp.headers.get('content-length') || '0', 10)
+
+          if (contentLength > 0 && audioResp.body) {
+            const reader = audioResp.body.getReader()
+            const chunks = []
+            let loaded = 0
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              chunks.push(value)
+              loaded += value.length
+              this.cloudLoadingProgress = 30 + Math.floor((loaded / contentLength) * 50)
+            }
+            this.songFile = new File([new Blob(chunks, { type: audioResp.type })], song.audio.filename || 'audio.mp3', { type: audioResp.type })
+          } else {
+            const audioBlob = await audioResp.blob()
+            this.songFile = new File([audioBlob], song.audio.filename || 'audio.mp3', { type: audioBlob.type })
+          }
+        }
+        this.cloudLoadingProgress = 85
+
+        // 转换分析数据
+        const { notes, beats, chords } = convertBackendResult(song.analysis, song.audio?.duration || 0)
+
+        // 设置音频（setAudioFile 会重置 beats/chords，必须在赋值前调用）
+        if (this.songFile) {
+          this.setAudioFile(this.songFile)
+        }
+        this.beats = beats
+        this.chords = chords
+        this.rawNotes = notes
+        this.chosenFile = true
+        this.updateDisplayNotes()
+        this.cloudLoadingProgress = 95
+
+        // 保存到本地 IndexedDB
+        try {
+          await songDB.add(song.title || 'pro-analysis', this.songFile, this.decodedNotes, { beats, chords })
+          this.getAnalysizedSongList()
+        } catch (saveError) {
+          console.warn('[CloudLoad] 保存到本地失败:', saveError.message)
+        }
+
+        this.cloudLoadingProgress = 100
+        await new Promise(r => setTimeout(r, 300))
+        this.showCloudLoading = false
+      } catch (e) {
+        this.showCloudLoading = false
+        throw e
+      }
+    },
+
+    /**
+     * 切换已分析列表的 Tab（本地 / 云端）
+     */
+    switchListTab(tab) {
+      this.activeListTab = tab
+      if (tab === 'cloud' && this.currentUser && this.cloudSongs.length === 0) {
+        this.loadCloudSongs()
+      }
+    },
+
+    /**
+     * 加载云端歌曲列表
+     */
+    async loadCloudSongs() {
+      if (!this.currentUser) return
+      this.cloudSongsLoading = true
+      try {
+        const resp = await getSongList({ limit: 50 })
+        if (Array.isArray(resp)) {
+          this.cloudSongs = resp
+        } else if (resp?.data) {
+          this.cloudSongs = Array.isArray(resp.data) ? resp.data : []
+        } else {
+          this.cloudSongs = []
+        }
+      } catch (e) {
+        console.error('加载云端歌曲失败:', e)
+        this.cloudSongs = []
+      } finally {
+        this.cloudSongsLoading = false
+      }
+    },
+
+    /**
+     * 云端歌曲状态中文映射
+     */
+    statusLabel(status) {
+      const labels = { analyzing: this.$t('songPitch.statusAnalyzing'), completed: this.$t('songPitch.statusCompleted'), failed: this.$t('songPitch.statusFailed'), pending: this.$t('songPitch.statusPending') }
+      return labels[status] || status
+    },
+
+    /**
+     * 从云端 Tab 点击"查看"加载云端歌曲
+     */
+    async loadCloudSong(songId) {
+      this.analysisMode = 'pro'
+      try {
+        // 先检查本地是否已缓存
+        const allLocal = await songDB.getAll()
+        const localMatch = allLocal.find(s => s.originalName === songId || s.name === songId)
+        if (localMatch && localMatch.song) {
+          this.showSong(localMatch)
+          return
+        }
+        await this.loadCloudProject(songId)
+      } catch (e) {
+        console.error('加载云端歌曲失败:', e)
+        push.error({ title: this.$t('songPitch.loadFailed'), description: e.message || this.$t('songPitch.pleaseRetry'), duration: 3000 })
+      }
+    },
+
+    /**
+     * 将当前专业版分析转至后台运行
+     */
+    sendToBackground() {
+      if (this.currentProAnalysisId) {
+        // 加入后台跟踪（去重）
+        if (!this.backgroundAnalysisIds.find(b => b.songId === this.currentProAnalysisId)) {
+          this.backgroundAnalysisIds.push({
+            songId: this.currentProAnalysisId,
+            title: this.currentProAnalysisTitle || this.$t('songPitch.proAnalysisDefault')
+          })
+        }
+      }
+      // 停止前台轮询
+      if (this.proAnalysisPollPromise && this.proAnalysisPollPromise.cancel) {
+        this.proAnalysisPollPromise.cancel()
+      }
+      // 关闭进度弹窗
+      this.showProProgress = false
+      this.proProgressPercent = 0
+
+      // 启动后台轮询
+      this.startBackgroundPolling()
+
+      push.success({ title: this.$t('songPitch.movedToBackground'), description: this.$t('songPitch.willNotifyOnComplete'), duration: 3000 })
+    },
+
+    /**
+     * 启动后台轮询（检查云端正在分析的项目）
+     */
+    async startBackgroundPolling() {
+      if (this.backgroundPollingTimer) return
+      if (!this.currentUser) return
+
+      // 首次：获取云端列表，找出正在分析的歌曲
+      try {
+        const resp = await getSongList({ limit: 50 })
+        let songs = []
+        if (Array.isArray(resp)) songs = resp
+        else if (resp?.data) songs = Array.isArray(resp.data) ? resp.data : []
+
+        const analyzing = songs.filter(s => s.status === 'analyzing')
+        for (const song of analyzing) {
+          if (!this.backgroundAnalysisIds.find(b => b.songId === song.id)) {
+            this.backgroundAnalysisIds.push({ songId: song.id, title: song.title || this.$t('songPitch.untitled') })
+          }
+        }
+      } catch (e) {
+        console.warn('[BackgroundPolling] 获取歌曲列表失败:', e.message)
+      }
+
+      if (this.backgroundAnalysisIds.length === 0) return
+
+      this.backgroundPollingTimer = setInterval(() => {
+        this.pollBackgroundAnalyses()
+      }, 12000)
+      this.pollBackgroundAnalyses()
+    },
+
+    /**
+     * 轮询后台分析进度
+     */
+    async pollBackgroundAnalyses() {
+      if (this.backgroundAnalysisIds.length === 0) {
+        this.stopBackgroundPolling()
+        return
+      }
+
+      const completedItems = []
+
+      for (const item of [...this.backgroundAnalysisIds]) {
+        try {
+          const progress = await getAnalysisProgress(item.songId)
+
+          if (!progress || progress.status === 'completed') {
+            completedItems.push(item)
+          } else if (progress.status === 'failed') {
+            completedItems.push(item)
+            push.error({ title: this.$t('songPitch.analysisFailedFor', { title: item.title }), description: progress.label || this.$t('songPitch.pleaseRetry'), duration: 5000 })
+          }
+        } catch (e) {
+          console.warn(`[BackgroundPolling] 查询 ${item.songId} 失败:`, e.message)
+        }
+      }
+
+      for (const item of completedItems) {
+        this.backgroundAnalysisIds = this.backgroundAnalysisIds.filter(b => b.songId !== item.songId)
+
+        // 显示完成横幅（带"查看"按钮）
+        this.completedNotification = { songId: item.songId, title: item.title, show: true }
+
+        // 刷新云端列表
+        if (this.activeListTab === 'cloud') {
+          this.loadCloudSongs()
+        }
+
+        push.success({ title: this.$t('songPitch.analysisCompleteBanner', { title: item.title }), description: this.$t('songPitch.checkTopRightBanner'), duration: 6000 })
+      }
+
+      if (this.backgroundAnalysisIds.length === 0) {
+        this.stopBackgroundPolling()
+      }
+    },
+
+    /**
+     * 停止后台轮询
+     */
+    stopBackgroundPolling() {
+      if (this.backgroundPollingTimer) {
+        clearInterval(this.backgroundPollingTimer)
+        this.backgroundPollingTimer = null
+      }
+    },
+
+    /**
+     * 点击完成横幅的"查看"按钮
+     */
+    async viewCompletedSong(songId) {
+      this.completedNotification = null
+      this.analysisMode = 'pro'
+      try {
+        const allLocal = await songDB.getAll()
+        const localMatch = allLocal.find(s => s.originalName === songId || s.name === songId)
+        if (localMatch && localMatch.song) {
+          this.showSong(localMatch)
+          return
+        }
+        await this.loadCloudProject(songId)
+      } catch (e) {
+        console.error('加载完成歌曲失败:', e)
+        push.error({ title: this.$t('songPitch.loadFailed'), description: e.message || this.$t('songPitch.pleaseRetry'), duration: 3000 })
+      }
+    },
+
+    /**
+     * 处理路由查询参数：从个人中心"打开"按钮跳转时自动加载歌曲
+     * ?song=歌曲名 → 加载本地歌曲
+     * ?project=云端项目ID → 加载云端分析结果
+     */
+    async handleRouteQuery() {
+      const query = this.$route.query
+      if (!query || (!query.song && !query.project)) return
+
+      try {
+        if (query.song) {
+          // 加载本地歌曲
+          const songName = query.song
+          const songData = await songDB.get(songName)
+          if (songData) {
+            this.showSong(songData)
+          }
+        } else if (query.project) {
+          // 加载云端项目
+          const projectId = query.project
+          this.analysisMode = 'pro'
+
+          // 先检查本地是否已有该云端歌曲（按 originalName 匹配）
+          const allLocal = await songDB.getAll()
+          const localMatch = allLocal.find(s => s.originalName === projectId || s.name === projectId)
+
+          if (localMatch && localMatch.song) {
+            this.showSong(localMatch)
+          } else {
+            await this.loadCloudProject(projectId)
+          }
+        }
+
+        // 清除查询参数，避免刷新重复加载
+        this.$router.replace({ path: '/main' }).catch(() => {})
+      } catch (e) {
+        console.error('加载指定歌曲失败:', e)
+      }
+    },
+
     setCanvasWH() {
       const canvasDiv = document.getElementById('canvasDiv')
       const noteCanvas = document.getElementById("note-canvas")
@@ -1602,7 +2189,12 @@ export default {
   },
   mounted() {
     this.getAnalysizedSongList()
-    this.checkLoginStatus()
+    this.checkLoginStatus().then(() => {
+      // 登录状态确认后，检查云端是否有正在分析的项目
+      if (this.currentUser) {
+        this.startBackgroundPolling()
+      }
+    })
 
     // 初始化声音标签分析器
     this.soundTagger = new SoundTagger()
@@ -1617,13 +2209,16 @@ export default {
         this.noteCtx = c.getContext("2d")
       }
 
+      // 检查路由参数，加载指定歌曲或云端项目
+      this.handleRouteQuery()
+
       // 检查是否有待加载的示例歌曲
       if (sessionStorage.getItem('pendingDemoSong') === 'true') {
         sessionStorage.removeItem('pendingDemoSong')
         this.$nextTick(() => this.loadDemoSong())
       }
     })
-    
+
     window.addEventListener('resize', this.setCanvasWH)
     this.magnification = Math.floor(window.innerHeight/7)
     let that = this
@@ -1631,6 +2226,10 @@ export default {
     setTimeout(() => {
       that.isHovered = false
     }, 4000);
+  },
+  beforeUnmount() {
+    this.stopBackgroundPolling()
+    window.removeEventListener('resize', this.setCanvasWH)
   }
 }
 </script>
@@ -1770,6 +2369,96 @@ a {
 .tooltip-enter-from,
 .tooltip-leave-to {
   opacity: 0;
+}
+
+/* 云端状态徽章 */
+.status-badge {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.status-badge.analyzing { background: #fef3c7; color: #92400e; }
+.status-badge.completed { background: #d1fae5; color: #065f46; }
+.status-badge.failed { background: #fee2e2; color: #991b1b; }
+.status-badge.pending { background: #e5e7eb; color: #374151; }
+
+/* 后台分析完成通知横幅 */
+.analysis-done-banner {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-radius: 12px;
+  border: 1px solid rgba(5, 150, 105, 0.2);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 10px 14px;
+  max-width: 340px;
+}
+.banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.banner-icon {
+  width: 18px;
+  height: 18px;
+  color: #059669;
+  flex-shrink: 0;
+}
+.banner-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1e293b;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.banner-view-btn {
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: #f59e0b;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.banner-view-btn:hover { background: #d97706; }
+.banner-view-btn:active { transform: scale(0.97); }
+.banner-close-btn {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #9ca3af;
+  background: none;
+  border: none;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.banner-close-btn:hover { background: rgba(0, 0, 0, 0.06); color: #374151; }
+
+/* 横幅滑入动画 */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: all 0.35s ease;
+}
+.slide-down-enter-from,
+.slide-down-leave-to {
+  opacity: 0;
+  transform: translateY(-20px);
 }
 
 </style>

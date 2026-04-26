@@ -9,13 +9,13 @@
         <svg class="w-5 h-5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
         </svg>
-        <span class="text-sm">返回</span>
+        <span class="text-sm">{{ $t('profileView.back') }}</span>
       </button>
 
       <!-- 用户资料卡 -->
       <div class="profile-card">
         <template v-if="!isEditing">
-          <div class="flex items-center gap-4">
+          <div class="profile-display">
             <div class="avatar-ring">
               <div class="avatar-inner">
                 <img v-if="user.avatar_url" :src="user.avatar_url" alt="头像" class="w-full h-full object-cover" />
@@ -24,16 +24,15 @@
                 </svg>
               </div>
             </div>
-            <div class="flex-1 min-w-0">
+            <div class="profile-meta">
               <div class="flex items-center gap-2">
-                <h2 class="text-lg font-semibold text-gray-800 truncate">{{ user.username || '未设置用户名' }}</h2>
-                <span v-if="isPremium" class="badge-pro">Pro</span>
+                <h2 class="profile-name">{{ user.username || $t('profileView.usernameEmpty') }}</h2>
+                <span class="plan-badge" :style="badgeStyle">{{ planDisplayName }}</span>
               </div>
-              <p class="text-sm text-gray-400 truncate mt-0.5">{{ user.email }}</p>
+              <p class="profile-email">{{ user.email }}</p>
             </div>
-            <button @click="isEditing = true"
-              class="flex-shrink-0 px-4 py-2 text-sm font-medium text-orange-600 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors">
-              编辑
+            <button @click="isEditing = true" class="edit-btn">
+              {{ $t('profileView.edit') }}
             </button>
           </div>
         </template>
@@ -41,74 +40,108 @@
         <template v-else>
           <div class="space-y-3">
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1.5">用户名</label>
-              <input v-model="form.username" type="text" placeholder="请输入用户名"
+              <label class="block text-xs font-medium text-gray-500 mb-1.5">{{ $t('profileView.username') }}</label>
+              <input v-model="form.username" type="text" :placeholder="$t('profileView.usernamePlaceholder')"
                 class="w-full bg-gray-50 text-gray-800 placeholder-gray-400 rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 transition-colors" />
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1.5">头像 URL</label>
-              <input v-model="form.avatar_url" type="url" placeholder="请输入头像图片链接"
+              <label class="block text-xs font-medium text-gray-500 mb-1.5">{{ $t('profileView.avatarUrl') }}</label>
+              <input v-model="form.avatar_url" type="url" :placeholder="$t('profileView.avatarUrlPlaceholder')"
                 class="w-full bg-gray-50 text-gray-800 placeholder-gray-400 rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 transition-colors" />
             </div>
             <div class="flex gap-2 pt-1">
               <button @click="handleSave" :disabled="loading"
                 class="flex-1 py-2.5 font-medium text-white bg-orange-500 rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50">
-                {{ loading ? '保存中...' : '保存' }}
+                {{ loading ? $t('profileView.saving') : $t('profileView.save') }}
               </button>
               <button @click="cancelEdit"
                 class="flex-1 py-2.5 font-medium text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">
-                取消
+                {{ $t('profileView.cancel') }}
               </button>
             </div>
           </div>
         </template>
       </div>
 
-      <!-- 数据概览 -->
-      <section class="mt-8">
-        <h3 class="section-title">数据概览</h3>
+      <!-- 当前套餐 -->
+      <section v-if="quota" class="mt-6">
+        <h3 class="section-title">{{ $t('profileView.currentPlan') }}</h3>
+        <div class="plan-info-card">
+          <div class="plan-info-row">
+            <span class="plan-info-label">{{ $t('profileView.planLevel') }}</span>
+            <span class="plan-badge" :style="badgeStyle">{{ planDisplayName }}</span>
+          </div>
+          <div v-if="quota.plan_expires_at" class="plan-info-row">
+            <span class="plan-info-label">{{ $t('profileView.expiresAt') }}</span>
+            <span class="plan-info-value" :class="{ expired: isPlanExpired }">
+              {{ formatDate(quota.plan_expires_at) }}
+              <span v-if="isPlanExpired" class="expired-tag">{{ $t('profileView.expired') }}</span>
+            </span>
+          </div>
+          <div v-if="planLevel !== 'free'" class="plan-info-row">
+            <router-link to="/pricing" class="upgrade-link">{{ $t('profileView.changePlan') }}</router-link>
+          </div>
+        </div>
+      </section>
 
-        <div v-if="!quotaLoaded" class="text-center text-gray-400 text-sm py-6">加载中...</div>
+      <!-- 数据概览 -->
+      <section class="mt-6">
+        <h3 class="section-title">{{ $t('profileView.dataOverview') }}</h3>
+
+        <div v-if="!quotaLoaded" class="text-center text-gray-400 text-sm py-6">{{ $t('profileView.loading') }}</div>
 
         <template v-else>
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-value">{{ localSongCount + cloudProjectCount }}</div>
-              <div class="stat-label">总歌曲</div>
+              <div class="stat-label">{{ $t('profileView.totalSongs') }}</div>
             </div>
             <div class="stat-card">
               <div class="stat-value" style="color: #06b6d4;">{{ cloudProjectCount }}</div>
-              <div class="stat-label">云端项目</div>
+              <div class="stat-label">{{ $t('profileView.cloudProjects') }}</div>
             </div>
             <div class="stat-card">
               <div class="stat-value" :style="{ color: monthlyPercent > 80 ? '#ef4444' : '#f59e0b' }">
                 {{ quota ? quota.monthly_used : 0 }}
               </div>
-              <div class="stat-label">本月已用</div>
+              <div class="stat-label">{{ $t('profileView.usedThisMonth') }}</div>
             </div>
           </div>
 
           <div v-if="quota" class="space-y-4 mt-4">
             <div>
               <div class="flex justify-between text-xs mb-1.5">
-                <span class="text-gray-500">云端存储</span>
-                <span class="text-gray-400">{{ isPremium ? '无限' : quota.storage_used + ' / ' + quota.storage_limit + ' 首' }}</span>
+                <span class="text-gray-500">{{ $t('profileView.cloudStorage') }}</span>
+                <span class="text-gray-400">{{ formatQuota(quota.storage_used, quota.storage_limit, $t('profileView.unitSong')) }}</span>
               </div>
               <div class="progress-track">
-                <div class="progress-fill" :style="{ width: isPremium ? '100%' : Math.min(storagePercent, 100) + '%', background: storagePercent > 80 && !isPremium ? '#ef4444' : '#06b6d4' }"></div>
+                <div class="progress-fill" :style="storageBarStyle"></div>
               </div>
             </div>
             <div>
               <div class="flex justify-between text-xs mb-1.5">
-                <span class="text-gray-500">本月配额</span>
-                <span class="text-gray-400">{{ isPremium ? '无限' : quota.monthly_used + ' / ' + quota.monthly_limit + ' 次' }}</span>
+                <span class="text-gray-500">{{ $t('profileView.monthlyQuota') }}</span>
+                <span class="text-gray-400">{{ formatQuota(quota.monthly_used, quota.monthly_limit, $t('profileView.unitTimes')) }}</span>
               </div>
               <div class="progress-track">
-                <div class="progress-fill" :style="{ width: isPremium ? '100%' : Math.min(monthlyPercent, 100) + '%', background: monthlyPercent > 80 && !isPremium ? '#ef4444' : '#f59e0b' }"></div>
+                <div class="progress-fill" :style="monthlyBarStyle"></div>
               </div>
             </div>
-            <router-link v-if="!isPremium && monthlyPercent > 60" to="/pricing" class="upgrade-tip">
-              升级 Pro 获取更多存储和无限分析次数 →
+            <div v-if="quota.daily_limit > 0">
+              <div class="flex justify-between text-xs mb-1.5">
+                <span class="text-gray-500">{{ $t('profileView.dailyQuota') }}</span>
+                <span class="text-gray-400">{{ formatQuota(quota.daily_used, quota.daily_limit, $t('profileView.unitTimes')) }}</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" :style="dailyBarStyle"></div>
+              </div>
+            </div>
+            <div v-if="quota.max_duration" class="flex justify-between text-xs">
+              <span class="text-gray-500">{{ $t('profileView.durationLimit') }}</span>
+              <span class="text-gray-400">{{ formatDuration(quota.max_duration) }}</span>
+            </div>
+            <router-link v-if="planLevel === 'free' || planLevel === 'basic'" to="/pricing" class="upgrade-tip">
+              {{ $t('profileView.upgradeHint') }}
             </router-link>
           </div>
         </template>
@@ -117,7 +150,7 @@
       <!-- 我的歌曲 -->
       <section class="mt-8">
         <div class="flex items-center justify-between mb-3">
-          <h3 class="section-title" style="margin-bottom: 0;">我的歌曲</h3>
+          <h3 class="section-title" style="margin-bottom: 0;">{{ $t('profileView.mySongs') }}</h3>
           <div class="flex gap-0.5 rounded-lg p-0.5" style="background: rgba(0,0,0,0.05);">
             <button v-for="tab in songTabs" :key="tab.key"
               @click="activeSongTab = tab.key"
@@ -127,9 +160,9 @@
           </div>
         </div>
 
-        <div v-if="songsLoading" class="text-center text-gray-400 text-sm py-8">加载中...</div>
+        <div v-if="songsLoading" class="text-center text-gray-400 text-sm py-8">{{ $t('profileView.loading') }}</div>
         <div v-else-if="filteredSongs.length === 0" class="text-center text-gray-400 text-sm py-8">
-          暂无{{ activeSongTab === 'local' ? '本地' : activeSongTab === 'cloud' ? '云端' : '' }}歌曲
+          {{ activeSongTab === 'local' ? $t('profileView.noSongsLocal') : activeSongTab === 'cloud' ? $t('profileView.noSongsCloud') : $t('profileView.noSongsLocal') }}
         </div>
         <div v-else class="space-y-1.5">
           <div v-for="song in filteredSongs" :key="song.id" class="song-item">
@@ -141,13 +174,13 @@
             <div class="flex-1 min-w-0">
               <div class="text-sm font-medium text-gray-700 truncate">{{ song.name }}</div>
               <div class="flex items-center gap-2 mt-0.5">
-                <span :class="['song-tag', song.source]">{{ song.source === 'local' ? '本地' : '云端' }}</span>
+                <span :class="['song-tag', song.source]">{{ song.source === 'local' ? $t('profileView.sourceLocal') : $t('profileView.sourceCloud') }}</span>
                 <span class="text-xs text-gray-400">{{ song.date }}</span>
               </div>
             </div>
             <div class="flex gap-1.5">
-              <button @click="openSong(song)" class="song-btn open">打开</button>
-              <button @click="deleteSong(song)" class="song-btn delete">删除</button>
+              <button @click="openSong(song)" class="song-btn open">{{ $t('profileView.open') }}</button>
+              <button @click="deleteSong(song)" class="song-btn delete">{{ $t('profileView.delete') }}</button>
             </div>
           </div>
         </div>
@@ -155,21 +188,21 @@
 
       <!-- 账户设置 -->
       <section class="mt-8 pb-8">
-        <h3 class="section-title">账户</h3>
+        <h3 class="section-title">{{ $t('profileView.account') }}</h3>
         <div class="space-y-2">
           <button @click="handleLogout"
             class="action-row">
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9"/>
             </svg>
-            <span>退出登录</span>
+            <span>{{ $t('profileView.logout') }}</span>
           </button>
           <button @click="showDeleteConfirm = true"
             class="action-row danger">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/>
             </svg>
-            <span>删除账户</span>
+            <span>{{ $t('profileView.deleteAccount') }}</span>
           </button>
         </div>
       </section>
@@ -178,11 +211,11 @@
     <!-- 删除确认对话框 -->
     <div v-if="showDeleteConfirm" class="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
       <div class="dialog-box">
-        <h3 class="text-lg font-bold text-gray-800 mb-2">确认删除账户？</h3>
-        <p class="text-gray-500 text-sm mb-6">此操作不可逆，您的所有数据将被永久删除。</p>
+        <h3 class="text-lg font-bold text-gray-800 mb-2">{{ $t('profileView.deleteConfirmTitle') }}</h3>
+        <p class="text-gray-500 text-sm mb-6">{{ $t('profileView.deleteConfirmWarning') }}</p>
         <div class="flex gap-3">
-          <button @click="handleDeleteAccount" class="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">确认删除</button>
-          <button @click="showDeleteConfirm = false" class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors">取消</button>
+          <button @click="handleDeleteAccount" class="flex-1 py-2.5 rounded-xl bg-red-500 text-white font-medium hover:bg-red-600 transition-colors">{{ $t('profileView.confirmDelete') }}</button>
+          <button @click="showDeleteConfirm = false" class="flex-1 py-2.5 rounded-xl bg-gray-100 text-gray-700 font-medium hover:bg-gray-200 transition-colors">{{ $t('profileView.cancel') }}</button>
         </div>
       </div>
     </div>
@@ -192,14 +225,17 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/store/modules/auth'
 import profileApi from '@/api/profile'
 import { getAnalysisQuota, getSongList, deleteSong as deleteSongApi } from '@/api/analysis'
 import songDB from '@/store/Song'
 import { push } from 'notivue'
+import { PLAN_LABELS, PLAN_COLORS, isPaidPlan, formatDuration, formatQuotaValue } from '@/js/planConstants'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const { t } = useI18n()
 
 const user = ref({ username: '', email: '', avatar_url: '' })
 const form = ref({ username: '', avatar_url: '' })
@@ -215,21 +251,52 @@ const cloudProjects = ref([])
 const songsLoading = ref(true)
 const activeSongTab = ref('all')
 
-const songTabs = [
-  { key: 'all', label: '全部' },
-  { key: 'local', label: '本地' },
-  { key: 'cloud', label: '云端' }
-]
+const songTabs = computed(() => [
+  { key: 'all', label: t('profileView.tabAll') },
+  { key: 'local', label: t('profileView.tabLocal') },
+  { key: 'cloud', label: t('profileView.tabCloud') }
+])
 
-const isPremium = computed(() => quota.value?.is_premium ?? false)
+// ─── Plan level ───
+const planLevel = computed(() => quota.value?.plan_level || 'free')
+const planDisplayName = computed(() => PLAN_LABELS[planLevel.value] || t('profileView.freePlan'))
+const badgeStyle = computed(() => {
+  const colors = PLAN_COLORS[planLevel.value] || PLAN_COLORS.free
+  return { background: colors.bg, color: colors.text }
+})
+const isPlanExpired = computed(() => {
+  if (!quota.value?.plan_expires_at) return false
+  return new Date(quota.value.plan_expires_at) < new Date()
+})
+
+// ─── Quota display ───
 const localSongCount = computed(() => localSongs.value.length)
 const cloudProjectCount = computed(() => cloudProjects.value.length)
-const storagePercent = computed(() =>
-  quota.value ? (quota.value.storage_used / quota.value.storage_limit * 100) : 0
-)
-const monthlyPercent = computed(() =>
-  quota.value ? (quota.value.monthly_used / quota.value.monthly_limit * 100) : 0
-)
+const storagePercent = computed(() => {
+  if (!quota.value || quota.value.storage_limit <= 0) return 0
+  return (quota.value.storage_used / quota.value.storage_limit * 100)
+})
+const monthlyPercent = computed(() => {
+  if (!quota.value || !quota.value.monthly_limit || quota.value.monthly_limit <= 0) return 0
+  return (quota.value.monthly_used / quota.value.monthly_limit * 100)
+})
+const dailyPercent = computed(() => {
+  if (!quota.value || !quota.value.daily_limit || quota.value.daily_limit <= 0) return 0
+  return (quota.value.daily_used / quota.value.daily_limit * 100)
+})
+
+const storageBarStyle = computed(() => ({
+  width: Math.min(storagePercent.value, 100) + '%',
+  background: storagePercent.value > 80 ? '#ef4444' : '#06b6d4'
+}))
+const monthlyBarStyle = computed(() => ({
+  width: Math.min(monthlyPercent.value, 100) + '%',
+  background: monthlyPercent.value > 80 ? '#ef4444' : '#f59e0b'
+}))
+const dailyBarStyle = computed(() => ({
+  width: Math.min(dailyPercent.value, 100) + '%',
+  background: dailyPercent.value > 80 ? '#ef4444' : '#8b5cf6'
+}))
 
 const filteredSongs = computed(() => {
   const all = []
@@ -242,7 +309,7 @@ const filteredSongs = computed(() => {
     cloudProjects.value.forEach(p => {
       all.push({
         id: 'cloud-' + p.id,
-        name: p.title || '未命名歌曲',
+        name: p.title || t('profileView.untitledSong'),
         source: 'cloud',
         date: p.created_at ? new Date(p.created_at).toLocaleDateString('zh-CN') : '',
         rawData: p
@@ -287,7 +354,6 @@ const loadSongs = async () => {
 
   try {
     const resp = await getSongList({ limit: 50 })
-    // GET /songs 返回 { data: [...songs], pagination, quota }
     if (Array.isArray(resp)) {
       cloudProjects.value = resp
     } else if (resp?.data) {
@@ -314,19 +380,30 @@ const handleSave = async () => {
     await profileApi.updateProfile(form.value)
     await loadProfile()
     isEditing.value = false
-    push.success({ title: '保存成功', duration: 2000 })
+    push.success({ title: t('profileView.saveSuccess'), duration: 2000 })
   } catch (e) {
-    push.error({ title: '保存失败', description: e.message, duration: 3000 })
+    push.error({ title: t('profileView.saveFailed'), description: e.message, duration: 3000 })
   } finally {
     loading.value = false
   }
 }
 
+const formatQuota = (used, limit, unit = '') => {
+  if (limit === -1) return `${used} / ${t('profileView.unlimited')}${unit}`
+  return `${used} / ${limit} ${unit}`
+}
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
 const openSong = (song) => {
   if (song.source === 'local') {
-    router.push({ path: '/', query: { song: song.name } })
+    router.push({ path: '/main', query: { song: song.name } })
   } else {
-    router.push({ path: '/', query: { project: song.rawData.id } })
+    router.push({ path: '/main', query: { project: song.rawData.id } })
   }
 }
 
@@ -339,9 +416,9 @@ const deleteSong = async (song) => {
       await deleteSongApi(song.rawData.id)
       cloudProjects.value = cloudProjects.value.filter(p => p.id !== song.rawData.id)
     }
-    push.success({ title: '删除成功', duration: 2000 })
+    push.success({ title: t('profileView.deleteSuccess'), duration: 2000 })
   } catch (e) {
-    push.error({ title: '删除失败', description: e.message, duration: 3000 })
+    push.error({ title: t('profileView.deleteFailed'), description: e.message, duration: 3000 })
   }
 }
 
@@ -366,6 +443,54 @@ const handleDeleteAccount = async () => {
   border: 1px solid #f3f4f6;
 }
 
+.profile-display {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.profile-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.profile-name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-email {
+  font-size: 13px;
+  color: #9ca3af;
+  margin: 3px 0 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edit-btn {
+  flex-shrink: 0;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #ea580c;
+  background: #fff7ed;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.edit-btn:hover { background: #ffedd5; }
+.edit-btn:active { transform: scale(0.97); }
+
 .avatar-ring {
   width: 56px;
   height: 56px;
@@ -385,14 +510,58 @@ const handleDeleteAccount = async () => {
   overflow: hidden;
 }
 
-.badge-pro {
+.plan-badge {
   font-size: 10px;
   font-weight: 700;
   padding: 2px 8px;
   border-radius: 6px;
-  background: linear-gradient(135deg, #f59e0b, #f97316);
-  color: white;
+  display: inline-block;
 }
+
+/* 当前套餐 */
+.plan-info-card {
+  background: white;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid #f3f4f6;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.plan-info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.plan-info-label {
+  font-size: 13px;
+  color: #6b7280;
+}
+.plan-info-value {
+  font-size: 13px;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.plan-info-value.expired {
+  color: #ef4444;
+}
+.expired-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-weight: 600;
+}
+.upgrade-link {
+  font-size: 12px;
+  color: #ea580c;
+  font-weight: 600;
+  text-decoration: none;
+}
+.upgrade-link:hover { text-decoration: underline; }
 
 /* 区域标题 */
 .section-title {

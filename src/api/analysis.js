@@ -42,7 +42,9 @@ export function getAnalysisProgress(songId) {
 /**
  * 获取当前用户配额信息
  * GET /analysis/quota/me
- * @returns {Promise<Object>} { storage_limit, storage_used, monthly_limit, monthly_used, is_premium }
+ * @returns {Promise<Object>} { storage_limit, storage_used, monthly_limit, monthly_used,
+ *   max_duration, daily_limit, daily_used, features: { midi_export, api_access },
+ *   plan_level, plan_expires_at }
  */
 export function getAnalysisQuota() {
   return request({
@@ -127,6 +129,20 @@ export function retryAnalysis(songId) {
   return request({
     url: `/songs/${songId}/retry`,
     method: 'post'
+  })
+}
+
+/**
+ * 导出 MIDI 文件（需要专业版或以上套餐）
+ * GET /songs/:id/export/midi
+ * @param {string} songId - 歌曲 ID
+ * @returns {Promise<Blob>} MIDI 文件 Blob
+ */
+export function exportMidi(songId) {
+  return request({
+    url: `/songs/${songId}/export/midi`,
+    method: 'get',
+    responseType: 'blob'
   })
 }
 

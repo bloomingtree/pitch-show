@@ -34,7 +34,7 @@ export const useAuthStore = defineStore('auth', {
       this.loading = true
       try {
         await authApi.sendEmailOTP(email)
-        push.success({ title: '已发送' })
+        push.success({ title: '已发送', duration: 1500 })
         return true
       } catch (error) {
         push.error({
@@ -74,7 +74,7 @@ export const useAuthStore = defineStore('auth', {
           await this.fetchUser()
         }
 
-        push.success({ title: '登录成功', duration: 2000 })
+        push.success({ title: '登录成功', duration: 1500 })
         return this.user
       } finally {
         this.loading = false

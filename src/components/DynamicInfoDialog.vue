@@ -13,9 +13,9 @@
         <div class="dialog-header">
           <div class="dialog-header-left">
             <MusicNoteDotIcon class="header-icon" />
-            <span class="dialog-title">设置</span>
+            <span class="dialog-title">{{ $t('settings.title') }}</span>
           </div>
-          <button @click="$emit('close')" class="close-btn" aria-label="关闭设置">
+          <button @click="$emit('close')" class="close-btn" :aria-label="$t('settings.close')">
             <CloseIcon class="w-5 h-5" />
           </button>
         </div>
@@ -25,7 +25,7 @@
           <!-- 左栏菜单 -->
           <div class="sidebar">
             <div class="sidebar-group">
-              <div class="sidebar-heading">显示</div>
+              <div class="sidebar-heading">{{ $t('settings.show') }}</div>
               <button
                 v-for="item in displayMenuItems"
                 :key="item.key"
@@ -36,21 +36,21 @@
               </button>
             </div>
             <div v-if="hasTracks" class="sidebar-group">
-              <div class="sidebar-heading">专业版</div>
+              <div class="sidebar-heading">{{ $t('settings.pro') }}</div>
               <button
                 @click="scrollToSection('tracks')"
                 :class="['menu-item', { active: activeSection === 'tracks' }]">
                 <TrackIcon class="menu-icon" />
-                <span class="menu-text">音轨显示</span>
+                <span class="menu-text">{{ $t('settings.trackDisplay') }}</span>
               </button>
             </div>
             <div class="sidebar-group">
-              <div class="sidebar-heading">账号</div>
+              <div class="sidebar-heading">{{ $t('settings.account') }}</div>
               <button
                 @click="scrollToSection('account')"
                 :class="['menu-item', { active: activeSection === 'account' }]">
                 <UserIcon class="menu-icon" />
-                <span class="menu-text">账号信息</span>
+                <span class="menu-text">{{ $t('settings.accountInfo') }}</span>
               </button>
             </div>
           </div>
@@ -59,8 +59,8 @@
           <div ref="scrollContainer" class="content-area" @scroll="onContentScroll">
             <!-- 外观设置 -->
             <div ref="section-appearance" class="panel">
-              <div class="panel-title">外观设置</div>
-              <p class="panel-desc">选择音符的配色方案。动态音符是指有颤音或揉弦等技巧的音符。</p>
+              <div class="panel-title">{{ $t('settings.appearance') }}</div>
+              <p class="panel-desc">{{ $t('settings.appearanceDesc') }}</p>
 
               <div class="color-scheme-list">
                 <button
@@ -86,17 +86,17 @@
               <div v-if="stats" class="stats-bar">
                 <div class="stat-item">
                   <span class="stat-value">{{ stats.total }}</span>
-                  <span class="stat-label">总音符数</span>
+                  <span class="stat-label">{{ $t('settings.totalNotes') }}</span>
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item highlight">
                   <span class="stat-value">{{ stats.byType.dynamic ? ((stats.byType.dynamic / stats.total) * 100).toFixed(1) : '0.0' }}%</span>
-                  <span class="stat-label">技巧音符</span>
+                  <span class="stat-label">{{ $t('settings.techniqueNotes') }}</span>
                 </div>
                 <div class="stat-divider"></div>
                 <div class="stat-item">
                   <span class="stat-value">{{ stats.byType.dynamic || 0 }}</span>
-                  <span class="stat-label">技巧音符数</span>
+                  <span class="stat-label">{{ $t('settings.techniqueNotesCount') }}</span>
                 </div>
               </div>
             </div>
@@ -105,15 +105,15 @@
 
             <!-- 过滤设置 -->
             <div ref="section-filter" class="panel">
-              <div class="panel-title">过滤设置</div>
-              <p class="panel-desc">隐藏不需要的音符，让谱面更清晰。</p>
+              <div class="panel-title">{{ $t('settings.filterSettings') }}</div>
+              <p class="panel-desc">{{ $t('settings.filterDesc') }}</p>
 
               <!-- 自动连接断音 -->
               <div class="toggle-item">
                 <div class="toggle-header">
                   <label class="toggle-label">
                     <MergeIcon class="label-icon" />
-                    自动连接断音
+                    {{ $t('settings.autoMerge') }}
                   </label>
                   <button
                     type="button"
@@ -124,7 +124,7 @@
                     <span class="toggle-thumb" />
                   </button>
                 </div>
-                <p class="toggle-help">把同一音高的断续音连接成一条长音符</p>
+                <p class="toggle-help">{{ $t('settings.autoMergeDesc') }}</p>
               </div>
 
               <!-- 连接间隔 -->
@@ -132,9 +132,9 @@
                 <div class="slider-header">
                   <label class="slider-label">
                     <GapIcon class="label-icon" />
-                    连接间隔
+                    {{ $t('settings.mergeGap') }}
                   </label>
-                  <span class="slider-value">{{ localFilterSettings.mergeGap.toFixed(2) }}秒</span>
+                  <span class="slider-value">{{ localFilterSettings.mergeGap.toFixed(2) }}{{ $t('settings.seconds') }}</span>
                 </div>
                 <div class="slider-track-wrapper">
                   <div class="slider-track">
@@ -150,7 +150,7 @@
                     />
                   </div>
                 </div>
-                <p class="slider-help">两个音之间最多隔多久还能连起来</p>
+                <p class="slider-help">{{ $t('settings.mergeGapDesc') }}</p>
               </div>
 
               <!-- 最短显示时长 -->
@@ -158,9 +158,9 @@
                 <div class="slider-header">
                   <label class="slider-label">
                     <ClockIcon class="label-icon" />
-                    最短显示时长
+                    {{ $t('settings.minDuration') }}
                   </label>
-                  <span class="slider-value">{{ localFilterSettings.minDuration.toFixed(2) }}秒</span>
+                  <span class="slider-value">{{ localFilterSettings.minDuration.toFixed(2) }}{{ $t('settings.seconds') }}</span>
                 </div>
                 <div class="slider-track-wrapper">
                   <div class="slider-track">
@@ -176,7 +176,7 @@
                     />
                   </div>
                 </div>
-                <p class="slider-help">隐藏短于 {{ localFilterSettings.minDuration }} 秒的音符（通常是杂音）</p>
+                <p class="slider-help">{{ $t('settings.minDurationDesc', { n: localFilterSettings.minDuration }) }}</p>
               </div>
 
               <hr class="section-divider" />
@@ -184,7 +184,7 @@
               <div class="action-buttons">
                 <button @click="resetFilterSettings" class="action-btn secondary">
                   <ResetIcon class="btn-icon" />
-                  恢复默认
+                  {{ $t('settings.resetDefault') }}
                 </button>
               </div>
             </div>
@@ -193,8 +193,8 @@
             <template v-if="hasTracks">
               <hr class="section-divider" />
               <div ref="section-tracks" class="panel">
-                <div class="panel-title">音轨显示</div>
-                <p class="panel-desc">切换各音轨的显示状态，专业版分析支持四轨独立显示。</p>
+                <div class="panel-title">{{ $t('settings.trackDisplay') }}</div>
+                <p class="panel-desc">{{ $t('settings.trackDisplayDesc') }}</p>
 
                 <div class="track-list">
                   <div
@@ -218,8 +218,8 @@
                 </div>
 
                 <div class="action-buttons">
-                  <button @click="selectAllTracks" class="action-btn secondary">全选</button>
-                  <button @click="selectNoTracks" class="action-btn secondary">全不选</button>
+                  <button @click="selectAllTracks" class="action-btn secondary">{{ $t('settings.selectAll') }}</button>
+                  <button @click="selectNoTracks" class="action-btn secondary">{{ $t('settings.deselectAll') }}</button>
                 </div>
               </div>
             </template>
@@ -227,13 +227,13 @@
             <!-- 账号信息 -->
             <hr class="section-divider" />
             <div ref="section-account" class="panel">
-              <div class="panel-title">账号信息</div>
+              <div class="panel-title">{{ $t('settings.accountInfo') }}</div>
 
               <!-- 已登录 -->
               <template v-if="currentUser">
                 <div class="account-card">
                   <div class="account-avatar">
-                    <img v-if="currentUser.avatar_url" :src="currentUser.avatar_url" alt="头像" class="avatar-img" />
+                    <img v-if="currentUser.avatar_url" :src="currentUser.avatar_url" :alt="$t('settings.account')" class="avatar-img" />
                     <svg v-else class="avatar-placeholder" fill="currentColor" viewBox="0 0 20 20">
                       <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
                     </svg>
@@ -241,8 +241,8 @@
                   <div class="account-meta">
                     <div class="account-name">{{ currentUser.username || currentUser.email }}</div>
                     <div class="account-email">{{ currentUser.email }}</div>
-                    <span :class="['account-badge', isPremiumUser ? 'pro' : 'free']">
-                      {{ isPremiumUser ? 'Pro' : '免费版' }}
+                    <span :class="['account-badge', planLevel !== 'free' ? 'pro' : 'free']">
+                      {{ planLevel !== 'free' ? planLabel : $t('settings.freePlan') }}
                     </span>
                   </div>
                 </div>
@@ -251,7 +251,7 @@
                   <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
                   </svg>
-                  个人中心
+                  {{ $t('settings.profile') }}
                   <svg class="btn-icon btn-chevron" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd"/>
                   </svg>
@@ -260,18 +260,18 @@
                   <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
                   </svg>
-                  退出登录
+                  {{ $t('settings.logout') }}
                 </button>
               </template>
 
               <!-- 未登录 -->
               <template v-else>
-                <p class="panel-desc">登录后可使用专业版分析功能，云端存储分析结果。</p>
+                <p class="panel-desc">{{ $t('settings.loginPrompt') }}</p>
                 <button class="account-action-btn login" @click="$emit('login')">
                   <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
                   </svg>
-                  登录
+                  {{ $t('settings.login') }}
                 </button>
               </template>
             </div>
@@ -289,6 +289,7 @@ import CloseIcon from '@/components/icons/CloseIcon.vue'
 import CheckIcon from '@/components/icons/CheckIcon.vue'
 import ResetIcon from '@/components/icons/ResetIcon.vue'
 import { DEFAULT_FILTER_SETTINGS } from '@/js/configManager'
+import { PLAN_LABELS } from '@/js/planConstants'
 
 // 内联图标
 const ClockIcon = {
@@ -316,10 +317,10 @@ const UserIcon = {
 }
 
 const TRACKS = [
-  { key: 'vocals', name: '人声', desc: '主旋律声部', color: '#06b6d4' },
-  { key: 'bass', name: '贝斯', desc: '低音声部', color: '#f59e0b' },
-  { key: 'drums', name: '鼓', desc: '打击乐声部', color: '#57534e' },
-  { key: 'other', name: '伴奏', desc: '其他乐器', color: '#84cc16' }
+  { key: 'vocals', color: '#06b6d4' },
+  { key: 'bass', color: '#f59e0b' },
+  { key: 'drums', color: '#57534e' },
+  { key: 'other', color: '#84cc16' }
 ]
 
 export default {
@@ -335,38 +336,51 @@ export default {
     trackFilters: { type: Object, default: () => ({ vocals: true, bass: true, drums: true, other: true }) },
     trackColors: { type: Object, default: () => ({}) },
     currentUser: { type: Object, default: null },
-    isPremiumUser: { type: Boolean, default: false }
+    isPremiumUser: { type: Boolean, default: false },
+    planLevel: { type: String, default: 'free' }
   },
   emits: ['close', 'update:currentScheme', 'update:filterSettings', 'update:trackFilters', 'navigate-profile', 'logout', 'login'],
   data() {
     return {
       activeSection: 'appearance',
       isScrolling: false, // 防止手动滚动和点击滚动互相干扰
-      colorSchemes: {
-        classic: { name: '经典', desc: '原始配色，清新自然', dynamic: '#84cc16', stable: '#f59e0b', tracks: { vocals: '#06b6d4', bass: '#f59e0b', drums: '#57534e', other: '#84cc16' } },
-        ocean: { name: '海洋', desc: '蓝灰配色，清爽干净', dynamic: '#0EA5E9', stable: '#64748B', tracks: { vocals: '#FF7675', bass: '#64748B', drums: '#94A3B8', other: '#0EA5E9' } },
-        sunset: { name: '落日', desc: '橙粉配色，温暖活力', dynamic: '#FF6B35', stable: '#F472B6', tracks: { vocals: '#FBBF24', bass: '#F472B6', drums: '#A78BFA', other: '#FF6B35' } },
-        forest: { name: '森林', desc: '绿紫配色，自然神秘', dynamic: '#10B981', stable: '#8B5CF6', tracks: { vocals: '#F87171', bass: '#8B5CF6', drums: '#D97706', other: '#10B981' } }
-      },
       localColorScheme: this.currentScheme,
       localFilterSettings: { ...this.filterSettings },
-      localTrackFilters: reactive({ ...this.trackFilters }),
-      tracks: TRACKS
+      localTrackFilters: reactive({ ...this.trackFilters })
     }
   },
   computed: {
+    planLabel() {
+      return PLAN_LABELS[this.planLevel] || this.$t('settings.freePlan')
+    },
+    colorSchemes() {
+      return {
+        classic: { name: this.$t('settings.themes.classic.name'), desc: this.$t('settings.themes.classic.desc'), dynamic: '#84cc16', stable: '#f59e0b', tracks: { vocals: '#06b6d4', bass: '#f59e0b', drums: '#57534e', other: '#84cc16' } },
+        ocean: { name: this.$t('settings.themes.ocean.name'), desc: this.$t('settings.themes.ocean.desc'), dynamic: '#0EA5E9', stable: '#64748B', tracks: { vocals: '#FF7675', bass: '#64748B', drums: '#94A3B8', other: '#0EA5E9' } },
+        sunset: { name: this.$t('settings.themes.sunset.name'), desc: this.$t('settings.themes.sunset.desc'), dynamic: '#FF6B35', stable: '#F472B6', tracks: { vocals: '#FBBF24', bass: '#F472B6', drums: '#A78BFA', other: '#FF6B35' } },
+        forest: { name: this.$t('settings.themes.forest.name'), desc: this.$t('settings.themes.forest.desc'), dynamic: '#10B981', stable: '#8B5CF6', tracks: { vocals: '#F87171', bass: '#8B5CF6', drums: '#D97706', other: '#10B981' } }
+      }
+    },
+    tracks() {
+      return [
+        { key: 'vocals', name: this.$t('settings.tracks.vocals.name'), desc: this.$t('settings.tracks.vocals.desc'), color: '#06b6d4' },
+        { key: 'bass', name: this.$t('settings.tracks.bass.name'), desc: this.$t('settings.tracks.bass.desc'), color: '#f59e0b' },
+        { key: 'drums', name: this.$t('settings.tracks.drums.name'), desc: this.$t('settings.tracks.drums.desc'), color: '#57534e' },
+        { key: 'other', name: this.$t('settings.tracks.other.name'), desc: this.$t('settings.tracks.other.desc'), color: '#84cc16' }
+      ]
+    },
     displayMenuItems() {
       return [
-        { key: 'appearance', label: '外观设置', icon: PaletteIcon },
-        { key: 'filter', label: '过滤设置', icon: FilterIcon }
+        { key: 'appearance', label: this.$t('settings.tabs.appearance'), icon: PaletteIcon },
+        { key: 'filter', label: this.$t('settings.tabs.filter'), icon: FilterIcon }
       ]
     },
     menuItems() {
       const items = [...this.displayMenuItems]
       if (this.hasTracks) {
-        items.push({ key: 'tracks', label: '音轨显示', icon: TrackIcon })
+        items.push({ key: 'tracks', label: this.$t('settings.tabs.tracks'), icon: TrackIcon })
       }
-      items.push({ key: 'account', label: '账号信息', icon: UserIcon })
+      items.push({ key: 'account', label: this.$t('settings.tabs.account'), icon: UserIcon })
       return items
     }
   },

@@ -13,9 +13,9 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="header-icon">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
-            <span class="dialog-title">额度已用完</span>
+            <span class="dialog-title">{{ $t('quotaExhausted.title') }}</span>
           </div>
-          <button @click="$emit('close')" class="close-btn" aria-label="关闭">
+          <button @click="$emit('close')" class="close-btn" :aria-label="$t('quotaExhausted.close')">
             <CloseIcon class="w-5 h-5" />
           </button>
         </div>
@@ -23,8 +23,14 @@
         <!-- 主体 -->
         <div class="dialog-body">
           <div class="info-text">
-            <p>免费用户每月可使用 <strong>2 次</strong>专业版分析，本月的额度已用完。</p>
-            <p>升级 Pro 即可享受<strong>无限次分析</strong>和更多存储空间。</p>
+            <template v-if="quotaType === 'daily'">
+              <p>{{ $t('quotaExhausted.dailyExhausted', { limit: quota.daily_limit }) }}</p>
+              <p>{{ $t('quotaExhausted.dailyUpgrade') }}</p>
+            </template>
+            <template v-else>
+              <p>{{ $t('quotaExhausted.monthlyExhausted', { limit: formatLimit(quota.monthly_limit) }) }}</p>
+              <p>{{ $t('quotaExhausted.monthlyUpgrade') }}</p>
+            </template>
           </div>
 
           <div class="quota-visual">
@@ -32,17 +38,22 @@
               <div class="quota-bar-fill used" :style="{ width: '100%' }"></div>
             </div>
             <div class="quota-label">
-              <span>本月已用 {{ monthlyUsed }} / {{ monthlyLimit }} 次</span>
+              <template v-if="quotaType === 'daily'">
+                <span>{{ $t('quotaExhausted.dailyUsed', { used: quota.daily_used }) }}</span>
+              </template>
+              <template v-else>
+                <span>{{ $t('quotaExhausted.monthlyUsed', { used: quota.monthly_used }) }}</span>
+              </template>
             </div>
           </div>
 
           <div class="action-buttons">
-            <button @click="$emit('close')" class="action-btn cancel">知道了</button>
+            <button @click="$emit('close')" class="action-btn cancel">{{ $t('quotaExhausted.gotIt') }}</button>
             <button @click="goPricing" class="action-btn confirm">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="btn-icon">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z" />
               </svg>
-              前往升级
+              {{ $t('quotaExhausted.upgrade') }}
             </button>
           </div>
         </div>
@@ -53,6 +64,7 @@
 
 <script>
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import CloseIcon from '@/components/icons/CloseIcon.vue'
 
 export default {
@@ -60,19 +72,25 @@ export default {
   components: { CloseIcon },
   props: {
     show: { type: Boolean, default: false },
-    monthlyUsed: { type: Number, default: 2 },
-    monthlyLimit: { type: Number, default: 2 }
+    quotaType: { type: String, default: 'monthly' },
+    quota: { type: Object, default: () => ({ monthly_used: 0, monthly_limit: 1, daily_used: 0, daily_limit: -1, plan_level: 'free' }) }
   },
   emits: ['close'],
   setup(props, { emit }) {
     const router = useRouter()
+    const { t } = useI18n()
 
     const goPricing = () => {
       emit('close')
       router.push('/pricing')
     }
 
-    return { goPricing }
+    const formatLimit = (value) => {
+      if (value === -1) return t('quotaExhausted.unlimited')
+      return value
+    }
+
+    return { goPricing, formatLimit }
   }
 }
 </script>

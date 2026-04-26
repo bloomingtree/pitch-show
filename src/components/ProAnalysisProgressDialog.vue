@@ -16,7 +16,7 @@
                 <path d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z"/>
               </svg>
             </div>
-            <span class="dialog-title">专业版 AI 分析中</span>
+            <span class="dialog-title">{{ $t('proProgress.title') }}</span>
           </div>
         </div>
 
@@ -37,27 +37,25 @@
 
           <!-- 预估时间 -->
           <div v-if="estimatedSeconds > 0" class="time-info">
-            预计剩余: 约 {{ formatTime(estimatedSeconds) }}
+            {{ $t('proProgress.estimatedRemaining', { time: formatTime(estimatedSeconds) }) }}
           </div>
 
-          <!-- 取消按钮 -->
-          <button
-            v-if="!isCompleted && !isFailed"
-            @click="$emit('cancel')"
-            class="cancel-btn">
-            取消分析
-          </button>
+          <!-- 操作按钮 -->
+          <div v-if="!isCompleted && !isFailed" class="action-buttons">
+            <button @click="$emit('background')" class="background-btn">{{ $t('proProgress.runInBackground') }}</button>
+            <button @click="$emit('cancel')" class="cancel-btn">{{ $t('proProgress.cancelAnalysis') }}</button>
+          </div>
 
           <!-- 完成提示 -->
-          <div v-if="isCompleted" class="status-msg success">分析完成！</div>
-          <div v-if="isFailed" class="status-msg failed">{{ errorMsg || '分析失败，请重试' }}</div>
+          <div v-if="isCompleted" class="status-msg success">{{ $t('proProgress.completed') }}</div>
+          <div v-if="isFailed" class="status-msg failed">{{ errorMsg || $t('proProgress.failed') }}</div>
 
           <!-- 失败/完成时的关闭按钮 -->
           <button
             v-if="isFailed || isCompleted"
             @click="$emit('close')"
             class="close-btn">
-            关闭
+            {{ $t('proProgress.close') }}
           </button>
         </div>
       </div>
@@ -67,26 +65,28 @@
 
 <script>
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 export default {
   name: 'ProAnalysisProgressDialog',
   props: {
     show: { type: Boolean, default: false },
     stage: { type: String, default: 'separating' },
-    stageLabel: { type: String, default: '正在分离音轨...' },
+    stageLabel: { type: String, default: '' },
     percent: { type: Number, default: 0 },
     estimatedSeconds: { type: Number, default: 0 },
     isCompleted: { type: Boolean, default: false },
     isFailed: { type: Boolean, default: false },
     errorMsg: { type: String, default: '' }
   },
-  emits: ['cancel', 'close'],
+  emits: ['cancel', 'close', 'background'],
   setup() {
+    const { t } = useI18n()
     const formatTime = (seconds) => {
-      if (seconds < 60) return `${Math.ceil(seconds)} 秒`
+      if (seconds < 60) return t('proProgress.seconds', { n: Math.ceil(seconds) })
       const min = Math.floor(seconds / 60)
       const sec = Math.ceil(seconds % 60)
-      return `${min} 分 ${sec} 秒`
+      return t('proProgress.minutes', { min, sec })
     }
     return { formatTime }
   }
@@ -214,7 +214,7 @@ export default {
 }
 
 .cancel-btn {
-  width: 100%;
+  flex: 1;
   height: 34px;
   border-radius: 8px;
   background: rgba(239, 68, 68, 0.1);
@@ -228,6 +228,27 @@ export default {
 
 .cancel-btn:hover { background: rgba(239, 68, 68, 0.18); }
 .cancel-btn:active { transform: scale(0.97); }
+
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.background-btn {
+  flex: 1;
+  height: 34px;
+  border-radius: 8px;
+  background: rgba(6, 182, 212, 0.1);
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  color: #06b6d4;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.background-btn:hover { background: rgba(6, 182, 212, 0.18); }
+.background-btn:active { transform: scale(0.97); }
 
 .status-msg {
   text-align: center;

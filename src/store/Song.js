@@ -37,17 +37,18 @@ function init() {
 }
   
 // add操作，添加数据（重名时自动加序号）
-async function add(name, song, notes) {
+async function add(name, song, notes, proMeta = null) {
     return new Promise((resolve, reject) => {
         const now = new Date()
         const dateStr = DateUtils.formatDate(now)
         const notesStr = JSON.stringify(notes)
+        const proMetaStr = proMeta ? JSON.stringify(proMeta) : null
         // 重名检测：查找不重复的名称
         findAvailableName(name).then(uniqueName => {
             const select = db
             .transaction([DB_NAME], "readwrite")
             .objectStore(DB_NAME)
-            .add({ name: uniqueName, song, notesStr, dateStr, originalName: name })
+            .add({ name: uniqueName, song, notesStr, proMetaStr, dateStr, originalName: name })
 
             select.onsuccess = (event) => {
             resolve(event.target.result)
@@ -74,15 +75,16 @@ async function findAvailableName(name) {
 }
 
 // put操作，更新或添加数据（如果存在则覆盖）
-async function put(name, song, notes) {
+async function put(name, song, notes, proMeta = null) {
     return new Promise((resolve, reject) => {
         const now = new Date()
         const dateStr = DateUtils.formatDate(now)
         const notesStr = JSON.stringify(notes)
+        const proMetaStr = proMeta ? JSON.stringify(proMeta) : null
         const select = db
         .transaction([DB_NAME], "readwrite")
         .objectStore(DB_NAME)
-        .put({ name, song, notesStr, dateStr })
+        .put({ name, song, notesStr, proMetaStr, dateStr })
 
         select.onsuccess = (event) => {
         resolve(event.target.result)
