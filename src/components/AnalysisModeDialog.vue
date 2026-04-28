@@ -40,7 +40,7 @@
               <div class="mode-desc">{{ $t('analysisMode.basicDesc') }}</div>
             </div>
             <ul class="mode-features">
-              <li v-for="(feature, i) in $t('analysisMode.basicFeatures')" :key="i">{{ feature }}</li>
+              <li v-for="(feature, i) in $tm('analysisMode.basicFeatures')" :key="i">{{ feature }}</li>
             </ul>
             <button class="mode-btn local-btn">{{ $t('analysisMode.basicStart') }}</button>
           </div>
@@ -63,7 +63,7 @@
               <div class="mode-desc">{{ $t('analysisMode.proDesc') }}</div>
             </div>
             <ul class="mode-features">
-              <li v-for="(feature, i) in $t('analysisMode.proFeatures')" :key="i">{{ feature }}</li>
+              <li v-for="(feature, i) in $tm('analysisMode.proFeatures')" :key="i">{{ feature }}</li>
             </ul>
             <button class="mode-btn pro-btn">{{ $t('analysisMode.proStart') }}</button>
             <div v-if="quotaExhausted" class="quota-hint">

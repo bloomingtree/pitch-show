@@ -17,9 +17,11 @@
       </div>
 
       <!-- 周期切换 -->
-      <div class="period-switch">
-        <button class="period-btn" :class="{ active: isAnnual }" @click="isAnnual = true">{{ $t('pricing.yearly') }}</button>
-        <button class="period-btn" :class="{ active: !isAnnual }" @click="isAnnual = false">{{ $t('pricing.monthly') }}</button>
+      <div class="period-switch-wrapper">
+        <div class="period-switch">
+          <button class="period-btn" :class="{ active: isAnnual }" @click="isAnnual = true">{{ $t('pricing.yearly') }}</button>
+          <button class="period-btn" :class="{ active: !isAnnual }" @click="isAnnual = false">{{ $t('pricing.monthly') }}</button>
+        </div>
         <span v-if="isAnnual" class="period-save">{{ $t('pricing.saveYearly') }}</span>
       </div>
 
@@ -85,13 +87,7 @@
           </div>
         </div>
         <div class="qr-area">
-          <div class="qr-placeholder">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" class="qr-placeholder-icon">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 013.75 9.375v-4.5zM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 01-1.125-1.125v-4.5zM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0113.5 9.375v-4.5z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75zM6.75 16.5h.75v.75h-.75v-.75zM16.5 6.75h.75v.75h-.75v-.75zM13.5 13.5h.75v.75h-.75v-.75zM13.5 19.5h.75v.75h-.75v-.75zM19.5 13.5h.75v.75h-.75v-.75zM19.5 19.5h.75v.75h-.75v-.75zM16.5 16.5h.75v.75h-.75v-.75z" />
-            </svg>
-            <span>{{ $t('pricing.qrCode') }}</span>
-          </div>
+          <img src="/wechat_code.webp" alt="WeChat QR Code" class="qr-image" />
         </div>
       </div>
 
@@ -113,6 +109,7 @@ export default {
   computed: {
     annualPlans() {
       const t = this.$t.bind(this)
+      const tm = this.$tm.bind(this)
       return [
         {
           key: 'free',
@@ -120,7 +117,7 @@ export default {
           priceLabel: t('pricing.plans.free.price'),
           pricePeriod: t('pricing.plans.free.pricePeriod'),
           recommended: false,
-          displayFeatures: t('pricing.features.free')
+          displayFeatures: tm('pricing.features.free')
         },
         {
           key: 'basic',
@@ -129,7 +126,7 @@ export default {
           pricePeriod: t('pricing.plans.basic.pricePeriod'),
           annualNote: t('pricing.plans.basic.annualNote'),
           recommended: false,
-          displayFeatures: t('pricing.features.basic')
+          displayFeatures: tm('pricing.features.basic')
         },
         {
           key: 'pro',
@@ -138,7 +135,7 @@ export default {
           pricePeriod: t('pricing.plans.pro.pricePeriod'),
           annualNote: t('pricing.plans.pro.annualNote'),
           recommended: true,
-          displayFeatures: t('pricing.features.pro')
+          displayFeatures: tm('pricing.features.pro')
         },
         {
           key: 'studio',
@@ -147,12 +144,13 @@ export default {
           pricePeriod: t('pricing.plans.studio.pricePeriod'),
           annualNote: t('pricing.plans.studio.annualNote'),
           recommended: false,
-          displayFeatures: t('pricing.features.studio')
+          displayFeatures: tm('pricing.features.studio')
         }
       ]
     },
     monthlyPlans() {
       const t = this.$t.bind(this)
+      const tm = this.$tm.bind(this)
       return [
         {
           key: 'free',
@@ -160,7 +158,7 @@ export default {
           priceLabel: t('pricing.plans.free.price'),
           pricePeriod: t('pricing.plans.free.pricePeriod'),
           recommended: false,
-          displayFeatures: t('pricing.features.free')
+          displayFeatures: tm('pricing.features.free')
         },
         {
           key: 'basic',
@@ -168,7 +166,7 @@ export default {
           priceLabel: t('pricing.plans.basic.priceMonthly'),
           pricePeriod: t('pricing.plans.basic.pricePeriodMonthly'),
           recommended: false,
-          displayFeatures: t('pricing.features.basic')
+          displayFeatures: tm('pricing.features.basic')
         },
         {
           key: 'pro',
@@ -176,7 +174,7 @@ export default {
           priceLabel: t('pricing.plans.pro.priceMonthly'),
           pricePeriod: t('pricing.plans.pro.pricePeriodMonthly'),
           recommended: true,
-          displayFeatures: t('pricing.features.pro')
+          displayFeatures: tm('pricing.features.pro')
         },
         {
           key: 'studio',
@@ -185,7 +183,7 @@ export default {
           pricePeriod: t('pricing.plans.studio.pricePeriod'),
           recommended: false,
           annualNote: t('pricing.plans.studio.annualOnly'),
-          displayFeatures: t('pricing.features.studio')
+          displayFeatures: tm('pricing.features.studio')
         }
       ]
     },
@@ -246,12 +244,18 @@ export default {
 }
 
 /* 周期切换 */
+.period-switch-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 20px;
+}
 .period-switch {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  margin-top: 20px;
 }
 .period-btn {
   padding: 6px 20px;
@@ -271,7 +275,6 @@ export default {
   border-color: #1e293b;
 }
 .period-save {
-  margin-left: 10px;
   font-size: 11px;
   font-weight: 600;
   color: #22c55e;
@@ -433,14 +436,15 @@ export default {
 
 /* 开通引导 */
 .activate-card {
-  margin-top: 20px;
-  padding: 20px;
+  margin-top: 24px;
+  padding: 28px 24px;
   border-radius: 16px;
   background: white;
   border: 1px solid #f3f4f6;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  align-items: center;
+  gap: 20px;
 }
 .activate-header {
   display: flex;
@@ -470,20 +474,12 @@ export default {
   display: flex;
   justify-content: center;
 }
-.qr-placeholder {
-  width: 160px;
-  height: 160px;
+.qr-image {
+  width: 200px;
+  height: auto;
   border-radius: 12px;
-  border: 2px dashed #e5e7eb;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: #d1d5db;
+  border: 1px solid #e5e7eb;
 }
-.qr-placeholder-icon { width: 40px; height: 40px; }
-.qr-placeholder span { font-size: 11px; color: #9ca3af; }
 
 /* 响应式 */
 @media (max-width: 640px) {

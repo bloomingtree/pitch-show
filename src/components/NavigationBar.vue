@@ -48,6 +48,17 @@
             {{ $t('navigationBar.separate') }}
           </router-link>
 
+          <router-link
+            to="/pricing"
+            class="nav-link"
+            :class="{ 'active': $route.name === 'pricing' }"
+          >
+            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {{ $t('navigationBar.pricing') }}
+          </router-link>
+
           <a
             href="https://notalabs.cn"
             target="_blank"
@@ -150,6 +161,13 @@
               </button>
             </div>
           </div>
+          <!-- 未登录状态 -->
+          <button v-else @click="showLoginDialog = true" class="login-btn">
+            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+            </svg>
+            {{ $t('navigationBar.login') }}
+          </button>
         </div>
 
         <!-- 移动端菜单按钮 -->
@@ -205,6 +223,18 @@
           </router-link>
 
           <router-link
+            to="/pricing"
+            class="mobile-nav-link"
+            :class="{ 'active': $route.name === 'pricing' }"
+            @click="closeMobileMenu"
+          >
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            {{ $t('navigationBar.pricing') }}
+          </router-link>
+
+          <router-link
             to="/about"
             class="mobile-nav-link"
             :class="{ 'active': $route.name === 'about' }"
@@ -230,21 +260,31 @@
         </div>
       </div>
     </div>
+
+    <!-- 登录弹窗 -->
+    <LoginDialog
+      :show="showLoginDialog"
+      @close="showLoginDialog = false"
+      @loggedIn="onLoginSuccess"
+    />
   </nav>
 </template>
 
 <script>
 import { useAuthStore } from '@/store/modules/auth'
 import { loadConfig, saveConfig } from '@/js/configManager.js'
+import LoginDialog from '@/components/LoginDialog.vue'
 
 export default {
   name: 'NavigationBar',
+  components: { LoginDialog },
   data() {
     return {
       mobileMenuOpen: false,
       language: 'zh',
       showUserMenu: false,
-      showLangMenu: false
+      showLangMenu: false,
+      showLoginDialog: false
     }
   },
   computed: {
@@ -288,6 +328,10 @@ export default {
       this.showUserMenu = false
       this.$router.push('/')
     },
+    onLoginSuccess(user) {
+      this.showLoginDialog = false
+      useAuthStore().setUser(user)
+    },
     handleClickOutside(event) {
       // 关闭用户菜单
       if (!event.target.closest('.relative')) {
@@ -329,4 +373,21 @@ export default {
 .mobile-nav-link.active {
   @apply text-amber-600 bg-amber-50;
 }
+
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 14px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.login-btn:hover { opacity: 0.9; transform: scale(1.02); }
+.login-btn:active { transform: scale(0.97); }
 </style>

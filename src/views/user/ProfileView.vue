@@ -44,11 +44,6 @@
               <input v-model="form.username" type="text" :placeholder="$t('profileView.usernamePlaceholder')"
                 class="w-full bg-gray-50 text-gray-800 placeholder-gray-400 rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 transition-colors" />
             </div>
-            <div>
-              <label class="block text-xs font-medium text-gray-500 mb-1.5">{{ $t('profileView.avatarUrl') }}</label>
-              <input v-model="form.avatar_url" type="url" :placeholder="$t('profileView.avatarUrlPlaceholder')"
-                class="w-full bg-gray-50 text-gray-800 placeholder-gray-400 rounded-xl px-4 py-2.5 outline-none border border-gray-200 focus:border-orange-300 focus:ring-1 focus:ring-orange-200 transition-colors" />
-            </div>
             <div class="flex gap-2 pt-1">
               <button @click="handleSave" :disabled="loading"
                 class="flex-1 py-2.5 font-medium text-white bg-orange-500 rounded-xl hover:bg-orange-600 transition-colors disabled:opacity-50">
@@ -238,7 +233,7 @@ const authStore = useAuthStore()
 const { t } = useI18n()
 
 const user = ref({ username: '', email: '', avatar_url: '' })
-const form = ref({ username: '', avatar_url: '' })
+const form = ref({ username: '' })
 const isEditing = ref(false)
 const loading = ref(false)
 const showDeleteConfirm = ref(false)
@@ -327,7 +322,7 @@ const loadProfile = async () => {
   try {
     const profile = await profileApi.getProfile()
     user.value = profile
-    form.value = { username: profile.username || '', avatar_url: profile.avatar_url || '' }
+    form.value = { username: profile.username || '' }
   } catch (e) {
     console.error('获取用户资料失败:', e)
   }
@@ -371,7 +366,7 @@ const loadSongs = async () => {
 
 const cancelEdit = () => {
   isEditing.value = false
-  form.value = { username: user.value.username || '', avatar_url: user.value.avatar_url || '' }
+  form.value = { username: user.value.username || '' }
 }
 
 const handleSave = async () => {
